@@ -3,71 +3,120 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>House Hunt — Evaluate</title>
 <style>
   :root {
+    color-scheme: light dark;
     --bg: #faf9f7; --card: #ffffff; --ink: #1a1a1a; --muted: #6b6b6b;
-    --line: #e3e0da; --accent: #2f6f4f; --accent-ink: #ffffff;
+    --line: rgba(0, 0, 0, 0.08);        /* separation borders: alpha in light */
+    --accent: #2f6f4f; --accent-ink: #ffffff;
     --chip: #f0eee9; --warn: #a04b12; --listed: #b3261e;
+    --elev: 0 0 0 1px rgb(0 0 0 / 0.05), 0 1px 3px rgb(0 0 0 / 0.05),
+            0 4px 10px -4px rgb(0 0 0 / 0.05);
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #17181a; --card: #202225; --ink: #ececec; --muted: #9a9a9a;
-      --line: #34363a; --accent: #4d9a74; --accent-ink: #0e1411;
+      --line: #34363a;                  /* separation borders: solid in dark */
+      --accent: #4d9a74; --accent-ink: #0e1411;
       --chip: #2b2d31; --warn: #d98a4f; --listed: #e57373;
+      --elev: 0 0 0 1px rgb(255 255 255 / 0.09);   /* shadows -> white ring */
     }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink);
+         -webkit-font-smoothing: antialiased;
          font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-  header { padding: 14px 16px 10px; border-bottom: 1px solid var(--line);
+  button, a, input, textarea { touch-action: manipulation; }
+  button { font: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  header { padding: 14px 16px 12px; border-bottom: 1px solid var(--line);
            position: sticky; top: 0; background: var(--bg); z-index: 5; }
-  header h1 { margin: 0 0 6px; font-size: 17px; }
-  .hdr-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .hdr-row input[type=search] { flex: 1; min-width: 140px; padding: 7px 10px;
+  header h1 { margin: 0 0 8px; font-size: 17px; text-wrap: balance; }
+  .hdr-row { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+  .hdr-row input[type=search] { flex: 1; min-width: 140px; padding: 8px 12px;
     border: 1px solid var(--line); border-radius: 8px; background: var(--card);
-    color: var(--ink); font-size: 15px; }
-  .who { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    color: var(--ink); font-size: 16px; min-height: 44px; }
+  .who { display: flex; border: 1px solid var(--line); border-radius: 8px;
+         overflow: hidden; }
   .who button { border: 0; background: var(--card); color: var(--ink);
-    padding: 7px 12px; font-size: 14px; cursor: pointer; }
-  .who button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+    padding: 0 14px; min-height: 42px; font-size: 14px;
+    transition: background-color 150ms ease-out, color 150ms ease-out; }
+  .who button + button { border-left: 1px solid var(--line); }
+  .who button.on { background: var(--accent); color: var(--accent-ink);
+                   font-weight: 600; }
   main { max-width: 720px; margin: 0 auto; padding: 10px 12px 60px; }
-  h2 { font-size: 15px; margin: 18px 4px 8px; color: var(--muted); font-weight: 600; }
+  h2 { font-size: 15px; margin: 18px 4px 8px; color: var(--muted);
+       font-weight: 600; font-variant-numeric: tabular-nums; }
   .note { color: var(--muted); font-size: 13px; margin: 8px 4px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
-          padding: 10px 12px; margin-bottom: 8px; }
+  .card { background: var(--card); border-radius: 10px; box-shadow: var(--elev);
+          padding: 12px 14px; margin-bottom: 10px; }
   .addr { font-weight: 650; font-size: 15px; }
-  .meta, .price { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .meta, .price { color: var(--muted); font-size: 13px; margin-top: 2px;
+                  font-variant-numeric: tabular-nums; }
   .price b { color: var(--ink); font-size: 14px; }
-  .tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 10px;
-         background: var(--chip); color: var(--muted); vertical-align: 1px; }
+  .tag { display: inline-block; font-size: 11px; padding: 1px 7px;
+         border-radius: 10px; background: var(--chip); color: var(--muted);
+         letter-spacing: 0.03em; vertical-align: 1px; }
   .tag.in { color: var(--accent); font-weight: 600; }
   .tag.listed { color: var(--listed); font-weight: 700; }
   .tag.done { color: var(--accent); }
-  .row2 { display: flex; justify-content: space-between; align-items: center; margin-top: 7px; }
-  .links a { color: var(--accent); text-decoration: none; margin-right: 12px; font-size: 14px; }
-  .evalbtn { border: 1px solid var(--line); background: var(--chip); color: var(--ink);
-             border-radius: 8px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
-  form { border-top: 1px dashed var(--line); margin-top: 10px; padding-top: 10px; }
-  .grp { margin-bottom: 10px; }
-  .grp .lbl { font-size: 12px; color: var(--muted); margin-bottom: 5px;
-              text-transform: uppercase; letter-spacing: .04em; }
+  .row2 { display: flex; justify-content: space-between; align-items: center;
+          margin-top: 8px; gap: 8px; }
+  .links { display: flex; }
+  .links a { color: var(--accent); text-decoration: none; font-size: 14px;
+             display: inline-flex; align-items: center; min-height: 44px;
+             padding: 0 10px; margin: -10px 0; }
+  .links a:first-child { margin-left: -10px; }
+  .evalbtn { border: 0; background: var(--chip); color: var(--ink);
+             border-radius: 8px; padding: 0 16px; min-height: 40px;
+             font-size: 13px; box-shadow: 0 0 0 1px var(--line);
+             transition: background-color 150ms ease-out, transform 150ms ease-out; }
+  form { border-top: 1px dashed var(--line); margin-top: 12px; padding-top: 12px; }
+  .grp { margin-bottom: 12px; }
+  .grp .lbl { display: block; font-size: 12px; color: var(--muted);
+              margin-bottom: 6px; text-transform: uppercase;
+              letter-spacing: 0.06em; }
   .opts { display: flex; flex-wrap: wrap; gap: 6px; }
-  .opts button { border: 1px solid var(--line); background: var(--card); color: var(--ink);
-    border-radius: 8px; padding: 6px 10px; font-size: 13px; cursor: pointer; position: relative; }
+  .opts button { border: 1px solid var(--line); background: var(--card);
+    color: var(--ink); border-radius: 8px; padding: 0 12px; min-height: 40px;
+    font-size: 13px; position: relative;
+    transition: background-color 150ms ease-out, border-color 150ms ease-out,
+                color 150ms ease-out, transform 150ms ease-out; }
   .opts button.on { background: var(--accent); color: var(--accent-ink);
                     border-color: var(--accent); font-weight: 600; }
-  .opts button .ord { position: absolute; top: -6px; right: -5px; background: var(--warn);
-    color: #fff; border-radius: 8px; font-size: 10px; padding: 0 4px; }
-  textarea { width: 100%; min-height: 64px; padding: 8px 10px; border-radius: 8px;
-    border: 1px solid var(--line); background: var(--bg); color: var(--ink);
-    font: 15px/1.4 inherit; }
-  .save { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px;
-          padding: 8px 18px; font-size: 14px; font-weight: 600; cursor: pointer; }
-  .err { color: var(--listed); font-size: 13px; margin-top: 6px; white-space: pre-wrap; }
+  .opts button .ord { position: absolute; top: -6px; right: -5px;
+    background: var(--warn); color: #fff; border-radius: 8px; font-size: 11px;
+    padding: 0 4px; font-variant-numeric: tabular-nums; pointer-events: none; }
+  textarea { width: 100%; min-height: 72px; padding: 10px 12px;
+    border-radius: 8px; border: 1px solid var(--line); background: var(--bg);
+    color: var(--ink); font: inherit; font-size: 16px; line-height: 1.4; }
+  .save { background: var(--accent); color: var(--accent-ink); border: 0;
+          border-radius: 8px; padding: 0 20px; min-height: 44px;
+          font-size: 14px; font-weight: 600;
+          transition: background-color 150ms ease-out, transform 150ms ease-out; }
+  .save:disabled { cursor: default; }
+  .err { color: var(--listed); font-size: 13px; margin-top: 8px;
+         white-space: pre-wrap; }
   .setup { max-width: 460px; margin: 60px auto; padding: 0 16px; }
-  .setup input { width: 100%; padding: 9px 10px; border: 1px solid var(--line);
-    border-radius: 8px; background: var(--card); color: var(--ink); margin: 10px 0; }
+  .setup input { width: 100%; padding: 10px 12px; border: 1px solid var(--line);
+    border-radius: 8px; background: var(--card); color: var(--ink);
+    margin: 10px 0; font-size: 16px; min-height: 44px; }
+  @media (hover: hover) and (pointer: fine) {
+    .who button:not(.on):hover, .evalbtn:hover,
+    .opts button:not(.on):hover { background: var(--chip); }
+    .opts button:not(.on):hover { background: color-mix(in oklch, var(--card) 92%, var(--ink)); }
+    .save:not(:disabled):hover,
+    .opts button.on:hover, .who button.on:hover {
+      background: color-mix(in oklch, var(--accent) 88%, black); }
+    .links a:hover { text-decoration: underline; }
+  }
+  button:not(:disabled):active { transform: scale(0.96); }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+    button:active { transform: none; }
+  }
 </style>
 </head>
 <body>
@@ -85,6 +134,7 @@ const DEMO = new URLSearchParams(location.search).get("demo") === "1";
 
 const $app = document.getElementById("app");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const plural = n => n === 1 ? "" : "s";
 
 function anonKey() {
   if (!BAKED_KEY.startsWith("__")) return BAKED_KEY;
@@ -168,7 +218,7 @@ function homeCard(p, town, inCut) {
                : p.on_market === false ? '<span class="tag">off-mkt?</span>' : "";
   const l = links(p.address, town);
   const rec = (done[p.id] || []).map(d =>
-    `<span class="tag done">✓ ${esc(d.verdict)} — ${esc(d.who)}</span>`).join(" ");
+    `<span class="tag done">✓ ${esc(VERDICT_LABELS[d.verdict] || d.verdict)} — ${esc(d.who)}</span>`).join(" ");
   return `<div class="card" data-addr="${esc(p.address.toLowerCase())}" data-pid="${p.id}">
     <div class="addr">${esc(p.address)} ${status} ${rec}</div>
     <div class="meta">${p.year_built || "?"} · ${esc(p.building_style)} ·
@@ -188,6 +238,12 @@ function homeCard(p, town, inCut) {
 }
 
 const VERDICTS = ["would-offer-now", "would-consider", "pass-on-house", "pass-on-location-only"];
+const VERDICT_LABELS = {
+  "would-offer-now": "Would offer now",
+  "would-consider": "Would consider",
+  "pass-on-house": "Pass on house",
+  "pass-on-location-only": "Pass on location only",
+};
 const AXES = ["house", "location", "price", "condition", "none"];
 const formState = {};   // pid -> {verdict, axes: []}
 
@@ -196,17 +252,26 @@ window.toggleForm = (pid, btn) => {
   if (slot.innerHTML) { slot.innerHTML = ""; return; }
   formState[pid] = { verdict: null, axes: [] };
   slot.innerHTML = `<form onsubmit="return saveEval(event, ${pid})">
-    <div class="grp"><div class="lbl">Verdict</div><div class="opts">
-      ${VERDICTS.map(v => `<button type="button" onclick="pickVerdict(${pid}, '${v}', this)">${v}</button>`).join("")}
+    <div class="grp"><span class="lbl" id="vlbl-${pid}">Verdict</span>
+      <div class="opts" role="group" aria-labelledby="vlbl-${pid}">
+      ${VERDICTS.map(v => `<button type="button" onclick="pickVerdict(${pid}, '${v}', this)">${VERDICT_LABELS[v]}</button>`).join("")}
     </div></div>
-    <div class="grp"><div class="lbl">Failure axis — tap in order, primary first</div><div class="opts">
-      ${AXES.map(a => `<button type="button" data-axis="${a}" onclick="pickAxis(${pid}, '${a}', this)">${a}</button>`).join("")}
+    <div class="grp"><span class="lbl" id="albl-${pid}">Failure axes — tap in order, primary first</span>
+      <div class="opts" role="group" aria-labelledby="albl-${pid}">
+      ${AXES.map(a => `<button type="button" data-axis="${a}" onclick="pickAxis(${pid}, '${a}', this)">${a.charAt(0).toUpperCase() + a.slice(1)}</button>`).join("")}
     </div></div>
-    <div class="grp"><div class="lbl">Reasoning — your actual words</div>
-      <textarea required placeholder="Why? Verbatim — this is the asset."></textarea></div>
+    <div class="grp"><label class="lbl" for="vr-${pid}">Reasoning — your actual words</label>
+      <textarea id="vr-${pid}" required onkeydown="textareaSubmit(event)"
+        placeholder="Why? Verbatim — this is the asset."></textarea></div>
     <button class="save" type="submit">Save as ${esc(who)}</button>
-    <div class="err"></div>
+    <div class="err" role="alert"></div>
   </form>`;
+  if (!("ontouchstart" in window)) slot.querySelector("textarea").focus();
+};
+
+window.textareaSubmit = e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter")
+    e.target.closest("form").requestSubmit();
 };
 
 window.pickVerdict = (pid, v, btn) => {
@@ -231,11 +296,13 @@ window.saveEval = (ev, pid) => {
   ev.preventDefault();
   const form = ev.target, st = formState[pid];
   const err = form.querySelector(".err");
+  const save = form.querySelector(".save");
   const text = form.querySelector("textarea").value.trim();
-  if (!st.verdict) { err.textContent = "Pick a verdict."; return false; }
+  if (!st.verdict) { err.textContent = "Pick a verdict first."; return false; }
   if (!text) { err.textContent = "Reasoning is required — it's the asset."; return false; }
-  if (DEMO) { err.textContent = "Demo mode — not saved."; return false; }
-  form.querySelector(".save").disabled = true;
+  if (DEMO) { err.textContent = "Demo mode — nothing is saved."; return false; }
+  save.disabled = true;
+  save.textContent = "Saving…";
   api("evaluations", {}, {
     method: "POST", raw: true,
     headers: { Prefer: "return=minimal" },
@@ -247,7 +314,8 @@ window.saveEval = (ev, pid) => {
     render();
   }).catch(e => {
     err.textContent = "Save failed: " + e.message;
-    form.querySelector(".save").disabled = false;
+    save.disabled = false;
+    save.textContent = `Save as ${who}`;
   });
   return false;
 };
@@ -256,8 +324,14 @@ window.setWho = w => { who = w; localStorage.setItem("hh_who", w); render(); };
 
 window.filterCards = q => {
   q = q.trim().toLowerCase();
-  for (const c of document.querySelectorAll(".card"))
-    c.style.display = !q || c.dataset.addr.includes(q) ? "" : "none";
+  let shown = 0;
+  for (const c of document.querySelectorAll(".card")) {
+    const hit = !q || c.dataset.addr.includes(q);
+    c.style.display = hit ? "" : "none";
+    if (hit) shown++;
+  }
+  const none = document.getElementById("nomatch");
+  if (none) none.hidden = shown > 0;
 };
 
 let data = null;
@@ -266,21 +340,24 @@ function render() {
   let total = 0;
   let html = `<header><h1>House Hunt — long-tenure watchlist</h1>
     <div class="hdr-row">
-      <span class="who">
+      <span class="who" role="group" aria-label="Recording as">
         ${["Luke", "Michelle"].map(w =>
           `<button class="${who === w ? "on" : ""}" onclick="setWho('${w}')">${w}</button>`).join("")}
       </span>
-      <input type="search" placeholder="Filter by address…" oninput="filterCards(this.value)">
+      <input type="search" placeholder="Filter by address…" aria-label="Filter by address"
+        autocomplete="off" spellcheck="false" oninput="filterCards(this.value)">
     </div></header><main>`;
+  if (DEMO) html += `<p class="note">Demo data — saving is disabled.</p>`;
   if (!who) html += `<p class="note">Pick who you are (top left) before evaluating.</p>`;
   for (const town of TOWNS) {
     const { r, homes } = data[town];
     const inCut = CEILING / Number(r.r_p75);
     total += homes.length;
-    html += `<h2>${town} — ${homes.length} homes (R ${r.r_median}, n=${r.n}, ${r.computed_at.slice(0, 10)})</h2>`;
+    html += `<h2>${town} — ${homes.length} home${plural(homes.length)} (R ${r.r_median}, n=${r.n}, ${r.computed_at.slice(0, 10)})</h2>`;
     html += homes.map(p => homeCard(p, town, inCut)).join("");
   }
-  html += `<p class="note">${total} homes · ceiling $${CEILING.toLocaleString()} ·
+  html += `<p class="note" id="nomatch" hidden>No homes match this filter.</p>`;
+  html += `<p class="note">${total} home${plural(total)} · ceiling $${CEILING.toLocaleString()} ·
     estimates = assessed × R · links open Zillow / Redfin-search / Street View.
     Saved verdicts land in the evaluations table; the ✓ tags are this browser's
     memory of its own saves.</p></main>`;
@@ -291,7 +368,8 @@ function renderSetup() {
   $app.innerHTML = `<div class="setup"><h1>Setup</h1>
     <p>Paste the Supabase <b>anon (publishable)</b> key — found in the dashboard
     under Settings → API. Never the service-role key.</p>
-    <input id="k" placeholder="eyJ…" autocomplete="off">
+    <label class="lbl" for="k">Anon key</label>
+    <input id="k" placeholder="eyJ…" autocomplete="off" spellcheck="false">
     <button class="save" onclick="localStorage.setItem('hh_anon_key',
       document.getElementById('k').value.trim()); location.reload()">Save</button></div>`;
 }
