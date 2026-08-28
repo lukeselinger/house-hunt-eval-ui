@@ -31,13 +31,12 @@
   button, a, input, select, textarea { touch-action: manipulation; }
   button { font: inherit; cursor: pointer; }
   :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-  header { padding: 14px 16px 12px; border-bottom: 1px solid var(--line);
+  header { padding: 12px 16px; border-bottom: 1px solid var(--line);
            position: sticky; top: 0; background: var(--bg); z-index: 5; }
-  header h1 { margin: 0 0 8px; font-size: 17px; text-wrap: balance; }
   .hdr-row { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap;
              margin-top: 8px; }
-  .hdr-row:first-of-type { margin-top: 0; }
-  .hdr-row input[type=search] { flex: 1; min-width: 140px; padding: 8px 12px;
+  .hdr-row:first-child { margin-top: 0; }
+  .hdr-row input[type=search] { flex: 1; min-width: 130px; padding: 8px 12px;
     border: 1px solid var(--line); border-radius: 8px; background: var(--card);
     color: var(--ink); font-size: 16px; min-height: 44px; }
   .seg { display: flex; border: 1px solid var(--line); border-radius: 8px;
@@ -48,6 +47,8 @@
   .seg button + button { border-left: 1px solid var(--line); }
   .seg button.on { background: var(--accent); color: var(--accent-ink);
                    font-weight: 600; }
+  .seg.mode { flex: 1; }
+  .seg.mode button { flex: 1; }
   select.ctl, button.ctl, input.ctl { border: 1px solid var(--line);
     border-radius: 8px; background: var(--card); color: var(--ink);
     font-size: 16px; min-height: 44px; padding: 0 10px; }
@@ -55,7 +56,7 @@
                transform 150ms ease-out; }
   .yr { display: flex; align-items: center; gap: 5px; color: var(--muted);
         font-size: 13px; }
-  .yr input { width: 64px; text-align: center;
+  .yr input { width: 60px; text-align: center;
               font-variant-numeric: tabular-nums; }
   main { max-width: 720px; margin: 0 auto; padding: 10px 12px 60px; }
   h2 { font-size: 15px; margin: 18px 4px 8px; color: var(--muted);
@@ -73,6 +74,7 @@
   .tag.in { color: var(--accent); font-weight: 600; }
   .tag.listed { color: var(--listed); font-weight: 700; }
   .tag.done { color: var(--accent); }
+  .tag.road { color: var(--warn); font-weight: 600; }
   .row2 { display: flex; justify-content: space-between; align-items: center;
           margin-top: 8px; gap: 8px; }
   .links { display: flex; }
@@ -84,6 +86,9 @@
              border-radius: 8px; padding: 0 16px; min-height: 40px;
              font-size: 13px; box-shadow: 0 0 0 1px var(--line);
              transition: background-color 150ms ease-out, transform 150ms ease-out; }
+  .donetoggle { border: 0; background: none; color: var(--muted);
+    font-size: 13px; padding: 8px 4px; min-height: 44px;
+    transition: color 150ms ease-out; }
   form { border-top: 1px dashed var(--line); margin-top: 12px; padding-top: 12px; }
   .grp { margin-bottom: 12px; }
   .grp .lbl { display: block; font-size: 12px; color: var(--muted);
@@ -97,6 +102,8 @@
                 color 150ms ease-out, transform 150ms ease-out; }
   .opts button.on { background: var(--accent); color: var(--accent-ink);
                     border-color: var(--accent); font-weight: 600; }
+  .opts button.fail { background: var(--listed); color: #fff;
+                      border-color: var(--listed); font-weight: 600; }
   .opts button .ord { position: absolute; top: -6px; right: -5px;
     background: var(--warn); color: #fff; border-radius: 8px; font-size: 11px;
     padding: 0 4px; font-variant-numeric: tabular-nums; pointer-events: none; }
@@ -114,14 +121,29 @@
   .setup input { width: 100%; padding: 10px 12px; border: 1px solid var(--line);
     border-radius: 8px; background: var(--card); color: var(--ink);
     margin: 10px 0; font-size: 16px; min-height: 44px; }
+  .gate { max-width: 420px; margin: 18vh auto 0; padding: 0 16px;
+          text-align: center; }
+  .gate h1 { font-size: 22px; margin-bottom: 24px; }
+  .gate button { display: block; width: 100%; margin: 12px 0; min-height: 64px;
+    font-size: 18px; font-weight: 600; border: 0; border-radius: 12px;
+    background: var(--card); color: var(--ink); box-shadow: var(--elev);
+    transition: background-color 150ms ease-out, transform 150ms ease-out; }
   @media (hover: hover) and (pointer: fine) {
     .seg button:not(.on):hover, .evalbtn:hover, button.ctl:hover,
-    .opts button:not(.on):hover { background: var(--chip); }
-    .opts button:not(.on):hover { background: color-mix(in oklch, var(--card) 92%, var(--ink)); }
+    .gate button:hover { background: var(--chip); }
+    .opts button:not(.on):not(.fail):hover {
+      background: color-mix(in oklch, var(--card) 92%, var(--ink)); }
     .save:not(:disabled):hover,
     .opts button.on:hover, .seg button.on:hover {
       background: color-mix(in oklch, var(--accent) 88%, black); }
     .links a:hover { text-decoration: underline; }
+    .donetoggle:hover { color: var(--ink); }
+  }
+  /* phones: five control rows would leave no room under a sticky header —
+     let it scroll away; give the mode tabs their own full-width row */
+  @media (max-width: 540px) {
+    header { position: static; }
+    .seg.mode { flex-basis: 100%; }
   }
   button:not(:disabled):active { transform: scale(0.96); }
   @media (prefers-reduced-motion: reduce) {
@@ -142,6 +164,9 @@ const TENURE_YEARS = 15;
 const TOWNS = ["Wenham", "Hamilton"];
 const ZIPS = { Wenham: "01984", Hamilton: "01982" };
 const DEMO = new URLSearchParams(location.search).get("demo") === "1";
+const PROP_FIELDS = "id,address,year_built,building_style,sqft,lot_size," +
+  "assessed_value,price_estimate,last_sale_date,last_sale_price,on_market," +
+  "bedrooms,bathrooms,road_fclass,road_aadt";
 
 const $app = document.getElementById("app");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -182,18 +207,28 @@ function links(addr, town) {
     m: `https://www.google.com/maps/place/${q}` };
 }
 
-// ---- local record of what's been saved from this browser (UI hint only;
-//      the DB is the source of truth — anon has no read access to evaluations) ----
-const done = JSON.parse(localStorage.getItem("hh_done") || "{}");
-function markDone(pid, verdict, who) {
-  (done[pid] = done[pid] || []).push({ verdict, who, at: new Date().toISOString() });
-  localStorage.setItem("hh_done", JSON.stringify(done));
+// ---- who has evaluated what ----
+// marks: DB truth from the eval_marks view (property_id + nominated_by only —
+// verdicts/verbatim stay unreadable to the anon key). localVerdicts: this
+// browser's memory of its own saves, used to enrich tags with the verdict.
+const localVerdicts = JSON.parse(localStorage.getItem("hh_done") || "{}");
+let marks = new Map();          // pid -> Set(names)
+function addMark(pid, name) {
+  if (!marks.has(pid)) marks.set(pid, new Set());
+  marks.get(pid).add(name);
+}
+function recordSave(pid, verdict, name) {
+  (localVerdicts[pid] = localVerdicts[pid] || []).push(
+    { verdict, who: name, at: new Date().toISOString() });
+  localStorage.setItem("hh_done", JSON.stringify(localVerdicts));
+  addMark(pid, name);
 }
 
 let who = localStorage.getItem("hh_who") || "";
 
-// ---- list view state: town filter, sort, year-built range, address query ----
-const view = { town: "All", sort: "est", dir: "asc", yrMin: null, yrMax: null, q: "" };
+// ---- list view state ----
+const view = { mode: "off", town: "All", road: "any", sort: "est", dir: "asc",
+               yrMin: null, yrMax: null, q: "", showDone: false };
 const SORT_KEYS = {
   est:      p => p.price_estimate,
   assessed: p => p.assessed_value,
@@ -202,77 +237,106 @@ const SORT_KEYS = {
   lot:      p => Number(p.lot_size),
 };
 
-// ---- watchlist query (mirrors pipeline/watchlist_export.py predicate) ----
-async function loadWatchlist() {
-  const cutoff = new Date(Date.now() - TENURE_YEARS * 365.25 * 864e5)
-    .toISOString().slice(0, 10);
-  const [soldRows, rRows] = await Promise.all([
-    api("listing_events", { event: "eq.sold", select: "property_id" }),
-    api("town_price_ratios", { town: `in.(${TOWNS.join(",")})`,
-      select: "town,r_median,r_p75,n,computed_at", order: "computed_at.desc" }),
-  ]);
-  const sold = new Set(soldRows.map(r => r.property_id));
-  const R = {};
-  for (const r of rRows) if (!R[r.town]) R[r.town] = r;   // first seen = latest
-  const out = {};
-  for (const town of TOWNS) {
-    const rows = await api("properties", {
-      town: `eq.${town}`, building_style: "ilike.*COLONIAL*", sqft: "gte.1800",
-      last_sale_price: "gt.100000", last_sale_date: `lt.${cutoff}`,
-      price_estimate: `lte.${CEILING}`,
-      select: "id,address,year_built,building_style,sqft,lot_size,assessed_value," +
-              "price_estimate,last_sale_date,last_sale_price,on_market",
-      order: "price_estimate.asc",
-    });
-    out[town] = { r: R[town], homes: rows.filter(p => !sold.has(p.id)) };
-  }
-  return out;
-}
-
 // ---- rendering ----
-function homeCard(p, town, inCut) {
-  const tier = p.assessed_value <= inCut ? "in" : "watch";
-  const saleYr = (p.last_sale_date || "").slice(0, 4);
-  const tenure = saleYr ? new Date().getFullYear() - +saleYr : "?";
-  const lot = p.lot_size ? (p.lot_size / 43560).toFixed(2) + " ac" : "?";
-  const status = p.on_market ? '<span class="tag listed">LISTED</span>'
-               : p.on_market === false ? '<span class="tag">off-mkt?</span>' : "";
-  const l = links(p.address, town);
-  const rec = (done[p.id] || []).map(d =>
-    `<span class="tag done">✓ ${esc(VERDICT_LABELS[d.verdict] || d.verdict)} — ${esc(d.who)}</span>`).join(" ");
-  return `<div class="card" data-addr="${esc(p.address.toLowerCase())}" data-pid="${p.id}">
-    <div class="addr">${esc(p.address)} ${status} ${rec}</div>
-    <div class="meta">${p.year_built || "?"} · ${esc(p.building_style)} ·
-      ${p.sqft.toLocaleString()} sqft · ${lot} · last sale ${saleYr}
-      $${(p.last_sale_price || 0).toLocaleString()} (${tenure}y)</div>
-    <div class="price">$${p.assessed_value.toLocaleString()} assessed →
-      <b>$${p.price_estimate.toLocaleString()}</b> est
-      <span class="tag ${tier}">${tier}</span></div>
-    <div class="row2">
-      <span class="links"><a href="${l.z}" target="_blank" rel="noopener">Zillow</a>
-        <a href="${l.r}" target="_blank" rel="noopener">Redfin</a>
-        <a href="${l.m}" target="_blank" rel="noopener">Map</a></span>
-      <button class="evalbtn" onclick="toggleForm(${p.id}, this)">Evaluate</button>
-    </div>
-    <div class="formslot"></div>
-  </div>`;
-}
-
+const HURDLES = [
+  ["main_road", "Main road"], ["curb_appeal", "Curb appeal"],
+  ["lot_size", "Lot size"], ["neighbors", "Neighbors"],
+  ["yard", "Yard"], ["placement", "Placement"],
+];
 const VERDICTS = ["would-offer-now", "would-consider", "pass-on-house", "pass-on-location-only"];
+const GATE_VERDICTS = ["would-consider", "defer", "exclude"];
 const VERDICT_LABELS = {
   "would-offer-now": "Would offer now",
   "would-consider": "Would consider",
   "pass-on-house": "Pass on house",
   "pass-on-location-only": "Pass on location only",
+  "defer": "Defer",
+  "exclude": "Exclude",
 };
+const formState = {};   // pid -> {verdict, axes: [], hurdles: {}}
 const AXES = ["house", "location", "price", "condition", "none"];
-const formState = {};   // pid -> {verdict, axes: []}
 
-window.toggleForm = (pid, btn) => {
+function markTags(pid) {
+  const names = marks.get(pid);
+  if (!names) return "";
+  return [...names].map(n => {
+    const loc = (localVerdicts[pid] || []).filter(d => d.who === n).pop();
+    const v = loc ? ` ${VERDICT_LABELS[loc.verdict] || loc.verdict}` : "";
+    return `<span class="tag done">✓ ${esc(n)}${esc(v)}</span>`;
+  }).join(" ");
+}
+
+function homeCard(p, town, inCut, mode, listPrice) {
+  const tier = p.assessed_value <= inCut ? "in" : "watch";
+  const saleYr = (p.last_sale_date || "").slice(0, 4);
+  const tenure = saleYr ? new Date().getFullYear() - +saleYr : "?";
+  const lot = p.lot_size ? (p.lot_size / 43560).toFixed(2) + " ac" : "?";
+  const road = p.road_fclass != null && p.road_fclass <= 6
+    ? `<span class="tag road">MAIN RD${p.road_aadt ? ` · ${Math.round(p.road_aadt / 1000)}k/day` : ""}</span>` : "";
+  const bb = p.bedrooms ? ` · ${p.bedrooms}bd/${Number(p.bathrooms) || "?"}ba` : "";
+  const l = links(p.address, town);
+  const priceLine = mode === "on"
+    ? `<b>${listPrice ? "$" + listPrice.toLocaleString() : "price TBD"}</b> list
+       · est $${(p.price_estimate || 0).toLocaleString()}
+       · $${p.assessed_value.toLocaleString()} assessed`
+    : `$${p.assessed_value.toLocaleString()} assessed →
+       <b>$${p.price_estimate.toLocaleString()}</b> est
+       <span class="tag ${tier}">${tier}</span>`;
+  return `<div class="card" data-addr="${esc(p.address.toLowerCase())}" data-pid="${p.id}">
+    <div class="addr">${esc(p.address)} ${road} ${markTags(p.id)}</div>
+    <div class="meta">${p.year_built || "?"} · ${esc(p.building_style || "?")}${bb} ·
+      ${(p.sqft || 0).toLocaleString()} sqft · ${lot} · last sale ${saleYr}
+      $${(p.last_sale_price || 0).toLocaleString()} (${tenure}y)</div>
+    <div class="price">${priceLine}</div>
+    <div class="row2">
+      <span class="links"><a href="${l.z}" target="_blank" rel="noopener">Zillow</a>
+        <a href="${l.r}" target="_blank" rel="noopener">Redfin</a>
+        <a href="${l.m}" target="_blank" rel="noopener">Map</a></span>
+      <button class="evalbtn" onclick="toggleForm(${p.id}, this, '${mode}')">Evaluate</button>
+    </div>
+    <div class="formslot"></div>
+  </div>`;
+}
+
+window.toggleForm = (pid, btn, mode) => {
   const slot = btn.closest(".card").querySelector(".formslot");
   if (slot.innerHTML) { slot.innerHTML = ""; return; }
-  formState[pid] = { verdict: null, axes: [] };
-  slot.innerHTML = `<form onsubmit="return saveEval(event, ${pid})">
+  const p = findHome(pid);
+  const hurdles = {};
+  if (mode === "off" && p && p.road_fclass != null)
+    hurdles.main_road = p.road_fclass <= 6 ? "fail" : "pass";
+  formState[pid] = { verdict: null, axes: [], hurdles };
+  slot.innerHTML = mode === "off" ? gateForm(pid, hurdles) : listingForm(pid);
+  if (mode !== "off" && !("ontouchstart" in window))
+    slot.querySelector("textarea").focus();
+};
+
+function gateForm(pid, hurdles) {
+  return `<form onsubmit="return saveEval(event, ${pid}, 'off')">
+    <div class="grp"><span class="lbl" id="hlbl-${pid}">Hurdles — tap: ✓ pass, tap again: ✗ fail (main road pre-filled from MassDOT)</span>
+      <div class="opts" role="group" aria-labelledby="hlbl-${pid}">
+      ${HURDLES.map(([k, label]) => {
+        const st = hurdles[k] || "";
+        const cls = st === "pass" ? "on" : st === "fail" ? "fail" : "";
+        const glyph = st === "pass" ? " ✓" : st === "fail" ? " ✗" : "";
+        return `<button type="button" class="${cls}" data-h="${k}"
+          onclick="cycleHurdle(${pid}, '${k}', this)">${label}${glyph}</button>`;
+      }).join("")}
+    </div></div>
+    <div class="grp"><span class="lbl" id="jlbl-${pid}">Judgment</span>
+      <div class="opts" role="group" aria-labelledby="jlbl-${pid}">
+      ${GATE_VERDICTS.map(v => `<button type="button" onclick="pickVerdict(${pid}, '${v}', this)">${VERDICT_LABELS[v]}</button>`).join("")}
+    </div></div>
+    <div class="grp"><label class="lbl" for="vr-${pid}">Note — optional</label>
+      <textarea id="vr-${pid}" onkeydown="textareaSubmit(event)"
+        placeholder="Anything worth remembering from Street View"></textarea></div>
+    <button class="save" type="submit">Save as ${esc(who)}</button>
+    <div class="err" role="alert"></div>
+  </form>`;
+}
+
+function listingForm(pid) {
+  return `<form onsubmit="return saveEval(event, ${pid}, 'on')">
     <div class="grp"><span class="lbl" id="vlbl-${pid}">Verdict</span>
       <div class="opts" role="group" aria-labelledby="vlbl-${pid}">
       ${VERDICTS.map(v => `<button type="button" onclick="pickVerdict(${pid}, '${v}', this)">${VERDICT_LABELS[v]}</button>`).join("")}
@@ -287,7 +351,15 @@ window.toggleForm = (pid, btn) => {
     <button class="save" type="submit">Save as ${esc(who)}</button>
     <div class="err" role="alert"></div>
   </form>`;
-  if (!("ontouchstart" in window)) slot.querySelector("textarea").focus();
+}
+
+window.cycleHurdle = (pid, k, btn) => {
+  const h = formState[pid].hurdles;
+  const next = { undefined: "pass", pass: "fail", fail: undefined }[h[k]];
+  if (next) h[k] = next; else delete h[k];
+  btn.className = next === "pass" ? "on" : next === "fail" ? "fail" : "";
+  btn.textContent = btn.textContent.replace(/ [✓✗]$/, "") +
+    (next === "pass" ? " ✓" : next === "fail" ? " ✗" : "");
 };
 
 window.textareaSubmit = e => {
@@ -313,14 +385,14 @@ window.pickAxis = (pid, a, btn) => {
   }
 };
 
-window.saveEval = (ev, pid) => {
+window.saveEval = (ev, pid, mode) => {
   ev.preventDefault();
   const form = ev.target, st = formState[pid];
   const err = form.querySelector(".err");
   const save = form.querySelector(".save");
   const text = form.querySelector("textarea").value.trim();
-  if (!st.verdict) { err.textContent = "Pick a verdict first."; return false; }
-  if (!text) { err.textContent = "Reasoning is required — it's the asset."; return false; }
+  if (!st.verdict) { err.textContent = "Pick a " + (mode === "off" ? "judgment" : "verdict") + " first."; return false; }
+  if (mode !== "off" && !text) { err.textContent = "Reasoning is required — it's the asset."; return false; }
   if (DEMO) { err.textContent = "Demo mode — nothing is saved."; return false; }
   save.disabled = true;
   save.textContent = "Saving…";
@@ -329,9 +401,10 @@ window.saveEval = (ev, pid) => {
     headers: { Prefer: "return=minimal" },
     body: { property_id: pid, verdict: st.verdict,
             failure_axis: st.axes.length ? st.axes : null,
-            nominated_by: who, verbatim_reasoning: text },
+            hurdles: Object.keys(st.hurdles).length ? st.hurdles : null,
+            nominated_by: who, verbatim_reasoning: text || null },
   }).then(() => {
-    markDone(pid, st.verdict, who);
+    recordSave(pid, st.verdict, who);
     renderList();
   }).catch(e => {
     err.textContent = "Save failed: " + e.message;
@@ -344,9 +417,18 @@ window.saveEval = (ev, pid) => {
 window.setWho = w => {
   who = w;
   localStorage.setItem("hh_who", w);
+  if (!data) { main(); return; }           // arriving from the profile gate
+  if (!document.getElementById("whoseg")) { renderShell(); return; }
   for (const b of document.querySelectorAll("#whoseg button"))
     b.classList.toggle("on", b.textContent === w);
-  renderList();   // open forms reset; Save button label must match `who`
+  renderList();   // open forms reset; Save labels and queues follow `who`
+};
+
+window.setMode = m => {
+  view.mode = m;
+  for (const b of document.querySelectorAll("#modeseg button"))
+    b.classList.toggle("on", b.dataset.mode === m);
+  renderList();
 };
 
 window.setTown = t => {
@@ -356,6 +438,7 @@ window.setTown = t => {
   renderList();
 };
 
+window.setRoad = r => { view.road = r; renderList(); };
 window.setSort = s => { view.sort = s; renderList(); };
 window.flipDir = btn => {
   view.dir = view.dir === "asc" ? "desc" : "asc";
@@ -363,6 +446,7 @@ window.flipDir = btn => {
   btn.setAttribute("aria-label", `Sort ${view.dir === "asc" ? "ascending" : "descending"}`);
   renderList();
 };
+window.toggleDone = () => { view.showDone = !view.showDone; renderList(); };
 
 let yrTimer;
 window.setYears = () => {
@@ -391,12 +475,18 @@ function applyAddrFilter() {
   if (none) none.hidden = shown > 0 || !document.querySelector(".card");
 }
 
-function visibleHomes(homes) {
-  let rows = homes;
-  if (view.yrMin !== null || view.yrMax !== null)
-    rows = rows.filter(p => p.year_built &&
-      (view.yrMin === null || p.year_built >= view.yrMin) &&
-      (view.yrMax === null || p.year_built <= view.yrMax));
+function passesFilters(p) {
+  if (view.yrMin !== null || view.yrMax !== null) {
+    if (!p.year_built) return false;
+    if (view.yrMin !== null && p.year_built < view.yrMin) return false;
+    if (view.yrMax !== null && p.year_built > view.yrMax) return false;
+  }
+  if (view.road === "res" && !(p.road_fclass === 7)) return false;
+  if (view.road === "main" && !(p.road_fclass != null && p.road_fclass <= 6)) return false;
+  return true;
+}
+
+function sortHomes(rows) {
   const key = SORT_KEYS[view.sort];
   const sgn = view.dir === "asc" ? 1 : -1;
   return [...rows].sort((a, b) => {
@@ -408,17 +498,40 @@ function visibleHomes(homes) {
   });
 }
 
-let data = null;
+let data = null;   // { watch, onmarket, listPrice }
+
+function findHome(pid) {
+  for (const town of TOWNS)
+    for (const src of [data.watch, data.onmarket]) {
+      const hit = (src[town]?.homes || []).find(p => p.id === pid);
+      if (hit) return hit;
+    }
+  return null;
+}
+
+function counts() {
+  const c = { off: 0, on: 0 };
+  for (const town of TOWNS) {
+    c.off += (data.watch[town]?.homes || []).length;
+    c.on += (data.onmarket[town]?.homes || []).length;
+  }
+  return c;
+}
 
 function renderShell() {
-  $app.innerHTML = `<header><h1>House Hunt — long-tenure watchlist</h1>
+  const c = counts();
+  $app.innerHTML = `<header>
     <div class="hdr-row">
+      <span class="seg mode" id="modeseg" role="group" aria-label="View">
+        <button data-mode="off" class="${view.mode === "off" ? "on" : ""}"
+          onclick="setMode('off')">Off-market (${c.off})</button>
+        <button data-mode="on" class="${view.mode === "on" ? "on" : ""}"
+          onclick="setMode('on')">On market (${c.on})</button>
+      </span>
       <span class="seg" id="whoseg" role="group" aria-label="Recording as">
         ${["Luke", "Michelle"].map(w =>
           `<button class="${who === w ? "on" : ""}" onclick="setWho('${w}')">${w}</button>`).join("")}
       </span>
-      <input type="search" placeholder="Filter by address…" aria-label="Filter by address"
-        autocomplete="off" spellcheck="false" oninput="filterCards(this.value)">
     </div>
     <div class="hdr-row">
       <span class="seg" id="townseg" role="group" aria-label="Town">
@@ -426,6 +539,15 @@ function renderShell() {
           `<button data-town="${t}" class="${view.town === t ? "on" : ""}"
              onclick="setTown('${t}')">${t}</button>`).join("")}
       </span>
+      <input type="search" placeholder="Filter by address…" aria-label="Filter by address"
+        autocomplete="off" spellcheck="false" oninput="filterCards(this.value)">
+    </div>
+    <div class="hdr-row">
+      <select class="ctl" aria-label="Road type" onchange="setRoad(this.value)">
+        <option value="any">Any road</option>
+        <option value="res">Residential</option>
+        <option value="main">Main road</option>
+      </select>
       <select class="ctl" aria-label="Sort by" onchange="setSort(this.value)">
         <option value="est">Price est.</option>
         <option value="assessed">Assessed</option>
@@ -447,27 +569,53 @@ function renderShell() {
 
 function renderList() {
   if (!data) return;
-  let total = 0;
+  const src = view.mode === "off" ? data.watch : data.onmarket;
+  let total = 0, doneTotal = 0;
   let html = "";
   if (DEMO) html += `<p class="note">Demo data — saving is disabled.</p>`;
-  if (!who) html += `<p class="note">Pick who you are (top left) before evaluating.</p>`;
+  if (view.mode === "on")
+    html += `<p class="note">Everything currently listed in both towns (any style/size —
+      the watchlist predicate does not apply here). Photos exist: full verdict + your
+      words. List price from the most recent Redfin alert.</p>`;
+  let doneHtml = "";
   for (const town of TOWNS) {
     if (view.town !== "All" && view.town !== town) continue;
-    const { r, homes } = data[town];
-    const inCut = CEILING / Number(r.r_p75);
-    const rows = visibleHomes(homes);
-    total += rows.length;
-    html += `<h2>${town} — ${rows.length} home${plural(rows.length)} (R ${r.r_median}, n=${r.n}, ${r.computed_at.slice(0, 10)})</h2>`;
-    html += rows.map(p => homeCard(p, town, inCut)).join("");
+    const { r, homes } = src[town] || { homes: [] };
+    const inCut = r ? CEILING / Number(r.r_p75) : Infinity;
+    const rows = sortHomes((homes || []).filter(passesFilters));
+    const queue = rows.filter(p => !(marks.get(p.id)?.has(who)));
+    const mine = rows.filter(p => marks.get(p.id)?.has(who));
+    total += queue.length;
+    doneTotal += mine.length;
+    const rctx = r ? ` (R ${r.r_median}, n=${r.n}, ${r.computed_at.slice(0, 10)})` : "";
+    html += `<h2>${town} — ${queue.length} to review${view.mode === "off" ? rctx : ""}</h2>`;
+    html += queue.map(p => homeCard(p, town, inCut, view.mode,
+      data.listPrice[p.id])).join("");
+    if (mine.length && view.showDone)
+      doneHtml += `<h2>${town} — done by ${esc(who)} (${mine.length})</h2>` +
+        mine.map(p => homeCard(p, town, inCut, view.mode,
+          data.listPrice[p.id])).join("");
   }
-  if (total === 0) html += `<p class="note">No homes match these filters.</p>`;
+  if (total === 0) html += `<p class="note">Queue clear — no homes match these filters that ${esc(who)} hasn't evaluated.</p>`;
+  if (doneTotal)
+    html += `<button class="donetoggle" onclick="toggleDone()">
+      ${view.showDone ? "▾ Hide" : "▸ Show"} ${doneTotal} already evaluated by ${esc(who)}</button>`;
+  html += doneHtml;
   html += `<p class="note" id="nomatch" hidden>No homes match this filter.</p>`;
-  html += `<p class="note">${total} home${plural(total)} shown · ceiling $${CEILING.toLocaleString()} ·
-    estimates = assessed × R · links open Zillow / Redfin-search / Street View.
-    Saved verdicts land in the evaluations table; the ✓ tags are this browser's
-    memory of its own saves.</p>`;
+  html += `<p class="note">Queues are per person: homes ${esc(who)} has evaluated drop
+    out of ${esc(who)}'s list but stay in the other queue. ✓ tags show who has
+    already weighed in. Ceiling $${CEILING.toLocaleString()} · estimates =
+    assessed × R · MAIN RD from MassDOT road class (peak daily traffic shown).</p>`;
   document.getElementById("list").innerHTML = html;
   applyAddrFilter();
+}
+
+function renderGate() {
+  $app.innerHTML = `<div class="gate"><h1>Who's evaluating?</h1>
+    ${["Luke", "Michelle"].map(w =>
+      `<button onclick="setWho('${w}')">${w}</button>`).join("")}
+    <p class="note">Verdicts are stamped with your name. Each of you has your
+    own queue — switch anytime, top right.</p></div>`;
 }
 
 function renderSetup() {
@@ -481,15 +629,11 @@ function renderSetup() {
 }
 
 async function main() {
-  if (DEMO) {
-    data = demoData();
-    renderShell();
-    return;
-  }
-  if (!anonKey()) { renderSetup(); return; }
-  $app.innerHTML = `<p class="note" style="margin:40px 16px">Loading watchlist…</p>`;
+  if (!DEMO && !anonKey()) { renderSetup(); return; }
+  if (!who) { renderGate(); return; }
+  $app.innerHTML = `<p class="note" style="margin:40px 16px">Loading…</p>`;
   try {
-    data = await loadWatchlist();
+    data = DEMO ? demoData() : await loadAll();
     renderShell();
   } catch (e) {
     $app.innerHTML = `<div class="setup"><p class="err">Load failed: ${esc(e.message)}</p>
@@ -498,17 +642,68 @@ async function main() {
   }
 }
 
+async function loadAll() {
+  const cutoff = new Date(Date.now() - TENURE_YEARS * 365.25 * 864e5)
+    .toISOString().slice(0, 10);
+  const [soldRows, rRows, markRows] = await Promise.all([
+    api("listing_events", { event: "eq.sold", select: "property_id" }),
+    api("town_price_ratios", { town: `in.(${TOWNS.join(",")})`,
+      select: "town,r_median,r_p75,n,computed_at", order: "computed_at.desc" }),
+    api("eval_marks", { select: "property_id,nominated_by" }),
+  ]);
+  marks = new Map();
+  for (const m of markRows) addMark(m.property_id, m.nominated_by);
+  const sold = new Set(soldRows.map(r => r.property_id));
+  const R = {};
+  for (const r of rRows) if (!R[r.town]) R[r.town] = r;
+  const watch = {}, onmarket = {};
+  for (const town of TOWNS) {
+    const [wl, om] = await Promise.all([
+      api("properties", {
+        town: `eq.${town}`, building_style: "ilike.*COLONIAL*",
+        sqft: "gte.1800", last_sale_price: "gt.100000",
+        last_sale_date: `lt.${cutoff}`, price_estimate: `lte.${CEILING}`,
+        select: PROP_FIELDS, order: "price_estimate.asc" }),
+      api("properties", { town: `eq.${town}`, on_market: "eq.true",
+        select: PROP_FIELDS, order: "address.asc" }),
+    ]);
+    watch[town] = { r: R[town], homes: wl.filter(p => !sold.has(p.id)) };
+    onmarket[town] = { r: R[town], homes: om };
+  }
+  const onmIds = TOWNS.flatMap(t => onmarket[t].homes.map(p => p.id));
+  const listPrice = {};
+  if (onmIds.length) {
+    const ev = await api("listing_events", {
+      property_id: `in.(${onmIds.join(",")})`,
+      event: "in.(listed,price_change)",
+      select: "property_id,list_price,observed_on", order: "observed_on.desc" });
+    for (const e of ev)
+      if (e.list_price && !(e.property_id in listPrice))
+        listPrice[e.property_id] = e.list_price;
+  }
+  return { watch, onmarket, listPrice };
+}
+
 function demoData() {
-  const mk = (id, address, yb, sqft, lot, av, pe, sd, sp, om) => ({
+  const mk = (id, address, yb, sqft, lot, av, pe, sd, sp, om, fc, aadt, bd, ba) => ({
     id, address, year_built: yb, building_style: "COLONIAL", sqft, lot_size: lot,
     assessed_value: av, price_estimate: pe, last_sale_date: sd, last_sale_price: sp,
-    on_market: om });
+    on_market: om, road_fclass: fc, road_aadt: aadt, bedrooms: bd, bathrooms: ba });
+  const r = { r_median: "1.1749", r_p75: "1.2523", n: 31, computed_at: "2026-08-06T00:00:00" };
   return {
-    Wenham: { r: { r_median: "1.1749", r_p75: "1.2523", n: 31, computed_at: "2026-08-06T00:00:00" },
-      homes: [mk(1, "186 TOPSFIELD RD", 1949, 1920, 20473, 704900, 828187, "1999-06-01", 185000, null),
-              mk(2, "6 LAKE AV", 1950, 2246, 10454, 761700, 894921, "1993-05-01", 170000, true)] },
-    Hamilton: { r: { r_median: "1.203", r_p75: "1.2523", n: 74, computed_at: "2026-08-06T00:00:00" },
-      homes: [mk(3, "21 UNTITLED ST", 1955, 2100, 15000, 700000, 842100, "2004-03-01", 300000, false)] },
+    watch: {
+      Wenham: { r, homes: [
+        mk(1, "186 TOPSFIELD RD", 1949, 1920, 20473, 704900, 828187, "1999-06-01", 185000, null, 4, 8033, 3, 2),
+        mk(2, "6 LAKE AV", 1950, 2246, 10454, 761700, 894921, "1993-05-01", 170000, null, 7, 1154, 4, 2)] },
+      Hamilton: { r, homes: [
+        mk(3, "21 UNTITLED ST", 1955, 2100, 15000, 700000, 842100, "2004-03-01", 300000, false, 7, 900, 4, 1)] },
+    },
+    onmarket: {
+      Wenham: { r, homes: [
+        mk(4, "9 DEMO WAY", 1988, 2400, 22000, 800000, 940000, "2021-05-01", 850000, true, 7, 1000, 4, 2.5)] },
+      Hamilton: { r, homes: [] },
+    },
+    listPrice: { 4: 999000 },
   };
 }
 
