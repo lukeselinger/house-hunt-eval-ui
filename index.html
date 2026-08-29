@@ -52,6 +52,30 @@
   .seg button.on { background: var(--accent); color: var(--accent-ink); }
   .seg.mode { flex: 1; }
   .seg.mode button { flex: 1; }
+  /* active-profile chip: shows who's recording; switching is behind an
+     action sheet — a deliberate act, not a view toggle */
+  .who-chip { display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); border-radius: 22px; background: var(--card);
+    color: var(--ink); padding: 0 14px 0 6px; min-height: 44px; font-size: 14px;
+    transition: background-color 150ms ease-out, transform 150ms ease-out; }
+  .ava { width: 30px; height: 30px; border-radius: 50%; background: var(--accent);
+    color: var(--accent-ink); display: inline-flex; align-items: center;
+    justify-content: center; font-size: 14px; flex: none; }
+  .sheet-backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 0.35);
+    z-index: 100; animation: fadeIn 150ms ease-out; }
+  .sheet { position: fixed; left: 50%; bottom: 16px;
+    transform: translateX(-50%); width: min(420px, calc(100% - 24px));
+    background: var(--card); border-radius: 14px; padding: 8px;
+    box-shadow: var(--elev), 0 12px 40px -12px rgb(0 0 0 / 0.45); z-index: 101;
+    animation: sheetIn 180ms ease-out; }
+  .sheet .item { display: flex; width: 100%; align-items: center; gap: 10px;
+    padding: 0 12px; min-height: 52px; border: 0; background: none;
+    color: var(--ink); border-radius: 8px; font-size: 15px; text-align: left;
+    transition: background-color 150ms ease-out; }
+  .sheet .item .check { margin-left: auto; color: var(--accent); }
+  .sheet .item.cancel { color: var(--muted); justify-content: center; }
+  @keyframes fadeIn { from { opacity: 0; } }
+  @keyframes sheetIn { from { opacity: 0; transform: translate(-50%, 10px); } }
   select.ctl, button.ctl, input.ctl { border: 1px solid var(--line);
     border-radius: 8px; background: var(--card); color: var(--ink);
     font-size: 16px; min-height: 44px; padding: 0 10px; }
@@ -138,7 +162,7 @@
     transition: background-color 150ms ease-out, transform 150ms ease-out; }
   @media (hover: hover) and (pointer: fine) {
     .seg button:not(.on):hover, .evalbtn:hover, button.ctl:hover,
-    .gate button:hover { background: var(--chip); }
+    .gate button:hover, .who-chip:hover, .sheet .item:hover { background: var(--chip); }
     .opts button:not(.on):not(.fail):hover {
       background: color-mix(in oklch, var(--card) 92%, var(--ink)); }
     .save:not(:disabled):hover,
@@ -155,7 +179,7 @@
   }
   button:not(:disabled):active { transform: scale(0.96); }
   @media (prefers-reduced-motion: reduce) {
-    * { transition: none !important; }
+    * { transition: none !important; animation: none !important; }
     button:active { transform: none; }
   }
 </style>
@@ -431,11 +455,50 @@ window.setWho = w => {
   who = w;
   localStorage.setItem("hh_who", w);
   if (!data) { main(); return; }           // arriving from the profile gate
-  if (!document.getElementById("whoseg")) { renderShell(); return; }
-  for (const b of document.querySelectorAll("#whoseg button"))
-    b.classList.toggle("on", b.textContent === w);
+  const chip = document.getElementById("whochip");
+  if (!chip) { renderShell(); return; }
+  chip.innerHTML = `<span class="ava" aria-hidden="true">${esc(who[0])}</span>${esc(who)}`;
   renderList();   // open forms reset; Save labels and queues follow `who`
 };
+
+// ---- profile action sheet: switching identity is a deliberate act ----
+window.openWhoSheet = () => {
+  if (document.getElementById("whosheet")) return;
+  const el = document.createElement("div");
+  el.id = "whosheet";
+  el.innerHTML = `<div class="sheet-backdrop" onclick="closeWhoSheet()"></div>
+    <div class="sheet" role="menu" aria-label="Switch who's evaluating">
+      <p class="note" style="margin:6px 12px 8px">Who's evaluating? Queues and
+        saved verdicts follow the name.</p>
+      ${["Luke", "Michelle"].map(w =>
+        `<button class="item" role="menuitemradio" aria-checked="${w === who}"
+           onclick="chooseWho('${w}')">
+           <span class="ava" aria-hidden="true">${w[0]}</span>${w}
+           ${w === who ? '<span class="check">✓</span>' : ""}
+         </button>`).join("")}
+      <button class="item cancel" role="menuitem" onclick="closeWhoSheet()">Cancel</button>
+    </div>`;
+  document.body.appendChild(el);
+  document.getElementById("whochip").setAttribute("aria-expanded", "true");
+  document.addEventListener("keydown", whoSheetKey);
+  el.querySelector('[aria-checked="true"]')?.focus();
+};
+
+window.closeWhoSheet = () => {
+  document.getElementById("whosheet")?.remove();
+  document.removeEventListener("keydown", whoSheetKey);
+  const chip = document.getElementById("whochip");
+  if (chip) { chip.setAttribute("aria-expanded", "false"); chip.focus(); }
+};
+
+window.chooseWho = w => {
+  closeWhoSheet();
+  if (w !== who) setWho(w);
+};
+
+function whoSheetKey(e) {
+  if (e.key === "Escape") closeWhoSheet();
+}
 
 window.setMode = m => {
   view.mode = m;
@@ -540,10 +603,10 @@ function renderShell() {
         <button data-mode="on" class="${view.mode === "on" ? "on" : ""}"
           onclick="setMode('on')">On market (${c.on})</button>
       </span>
-      <span class="seg" id="whoseg" role="group" aria-label="Recording as">
-        ${["Luke", "Michelle"].map(w =>
-          `<button class="${who === w ? "on" : ""}" onclick="setWho('${w}')">${w}</button>`).join("")}
-      </span>
+      <button class="who-chip" id="whochip" aria-haspopup="menu"
+        aria-expanded="false" onclick="openWhoSheet()">
+        <span class="ava" aria-hidden="true">${esc(who[0] || "?")}</span>${esc(who)}
+      </button>
     </div>
     <div class="hdr-row">
       <span class="seg" id="townseg" role="group" aria-label="Town">
