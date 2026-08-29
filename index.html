@@ -40,9 +40,11 @@
   .hdr-row { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap;
              margin-top: 8px; }
   .hdr-row:first-child { margin-top: 0; }
+  /* row 1 = identity + view: content-sized, never wraps, never separates */
+  .hdr-row.primary { justify-content: space-between; flex-wrap: nowrap; }
   .hdr-row input[type=search] { flex: 1; min-width: 130px; padding: 8px 12px;
     border: 1px solid var(--line); border-radius: 8px; background: var(--card);
-    color: var(--ink); font-size: 16px; min-height: 44px; }
+    color: var(--ink); min-height: 44px; }
   .seg { display: flex; border: 1px solid var(--line); border-radius: 8px;
          overflow: hidden; }
   .seg button { border: 0; background: var(--card); color: var(--ink);
@@ -50,8 +52,6 @@
     transition: background-color 150ms ease-out, color 150ms ease-out; }
   .seg button + button { border-left: 1px solid var(--line); }
   .seg button.on { background: var(--accent); color: var(--accent-ink); }
-  .seg.mode { flex: 1; }
-  .seg.mode button { flex: 1; }
   /* active-profile chip: shows who's recording; switching is behind an
      action sheet — a deliberate act, not a view toggle */
   .who-chip { display: inline-flex; align-items: center; gap: 8px;
@@ -78,12 +78,31 @@
   @keyframes sheetIn { from { opacity: 0; transform: translate(-50%, 10px); } }
   select.ctl, button.ctl, input.ctl { border: 1px solid var(--line);
     border-radius: 8px; background: var(--card); color: var(--ink);
-    font-size: 16px; min-height: 44px; padding: 0 10px; }
+    min-height: 44px; padding: 0 12px; }
   button.ctl { transition: background-color 150ms ease-out,
                transform 150ms ease-out; }
-  .yr { display: flex; align-items: center; gap: 5px; color: var(--muted);
-        font-size: 13px; }
-  .yr input { width: 60px; text-align: center;
+  /* one control type size: 14px. Exception: on touch devices, FIELDS
+     (inputs/selects) go 16px — under that, iOS Safari zooms on focus. */
+  header button, header input, header select { font-size: 14px; }
+  @media (pointer: coarse) {
+    header input, header select { font-size: 16px; }
+  }
+  /* selects draw their own chevron so both edges share the same padding */
+  .selwrap { position: relative; display: inline-flex; }
+  .selwrap::after { content: "▾"; position: absolute; right: 12px; top: 50%;
+    transform: translateY(-50%); pointer-events: none; color: var(--muted);
+    font-size: 11px; }
+  select.ctl { appearance: none; -webkit-appearance: none;
+               padding: 0 28px 0 12px; }
+  /* sort attribute + direction read as one control */
+  .sortgrp { display: inline-flex; border: 1px solid var(--line);
+             border-radius: 8px; overflow: hidden; background: var(--card); }
+  .sortgrp .ctl { border: 0; border-radius: 0; min-height: 42px; }
+  .sortgrp .dir { border-left: 1px solid var(--line); min-width: 44px;
+                  text-align: center; }
+  .ctl-lbl { display: flex; align-items: center; gap: 6px;
+             color: var(--muted); font-size: 13px; }
+  .yr input { width: 60px; text-align: center; padding: 0 6px;
               font-variant-numeric: tabular-nums; }
   main { max-width: 720px; margin: 0 auto; padding: 10px 12px 60px; }
   h2 { font-size: 15px; margin: 18px 4px 8px; color: var(--muted);
@@ -175,7 +194,11 @@
      let it scroll away; give the mode tabs their own full-width row */
   @media (max-width: 540px) {
     header { position: static; }
-    .seg.mode { flex-basis: 100%; }
+  }
+  /* very narrow: chip collapses to the avatar; row 1 still never wraps */
+  @media (max-width: 430px) {
+    .who-chip .name { display: none; }
+    .who-chip { padding: 0 6px; }
   }
   button:not(:disabled):active { transform: scale(0.96); }
   @media (prefers-reduced-motion: reduce) {
@@ -457,7 +480,8 @@ window.setWho = w => {
   if (!data) { main(); return; }           // arriving from the profile gate
   const chip = document.getElementById("whochip");
   if (!chip) { renderShell(); return; }
-  chip.innerHTML = `<span class="ava" aria-hidden="true">${esc(who[0])}</span>${esc(who)}`;
+  chip.innerHTML = `<span class="ava" aria-hidden="true">${esc(who[0])}</span><span class="name">${esc(who)}</span>`;
+  chip.setAttribute("aria-label", `Evaluating as ${who} — switch person`);
   renderList();   // open forms reset; Save labels and queues follow `who`
 };
 
@@ -596,16 +620,17 @@ function counts() {
 function renderShell() {
   const c = counts();
   $app.innerHTML = `<header>
-    <div class="hdr-row">
-      <span class="seg mode" id="modeseg" role="group" aria-label="View">
+    <div class="hdr-row primary">
+      <span class="seg" id="modeseg" role="group" aria-label="View">
         <button data-mode="off" class="${view.mode === "off" ? "on" : ""}"
           onclick="setMode('off')">Off-market (${c.off})</button>
         <button data-mode="on" class="${view.mode === "on" ? "on" : ""}"
           onclick="setMode('on')">On market (${c.on})</button>
       </span>
       <button class="who-chip" id="whochip" aria-haspopup="menu"
-        aria-expanded="false" onclick="openWhoSheet()">
-        <span class="ava" aria-hidden="true">${esc(who[0] || "?")}</span>${esc(who)}
+        aria-expanded="false" aria-label="Evaluating as ${esc(who)} — switch person"
+        onclick="openWhoSheet()">
+        <span class="ava" aria-hidden="true">${esc(who[0] || "?")}</span><span class="name">${esc(who)}</span>
       </button>
     </div>
     <div class="hdr-row">
@@ -618,20 +643,27 @@ function renderShell() {
         autocomplete="off" spellcheck="false" oninput="filterCards(this.value)">
     </div>
     <div class="hdr-row">
-      <select class="ctl" aria-label="Road type" onchange="setRoad(this.value)">
+      <span class="selwrap"><select class="ctl" aria-label="Road type"
+          onchange="setRoad(this.value)">
         <option value="any">Any road</option>
         <option value="res">Residential</option>
         <option value="main">Main road</option>
-      </select>
-      <select class="ctl" aria-label="Sort by" onchange="setSort(this.value)">
-        <option value="est">Price est.</option>
-        <option value="assessed">Assessed</option>
-        <option value="year">Year built</option>
-        <option value="sqft">Sqft</option>
-        <option value="lot">Lot size</option>
-      </select>
-      <button class="ctl" aria-label="Reverse sort order" onclick="flipDir(this)">↑</button>
-      <span class="yr"><label for="yrmin">Built</label>
+      </select></span>
+      <span class="ctl-lbl"><label for="sortsel">Sort</label>
+        <span class="sortgrp">
+          <span class="selwrap"><select class="ctl" id="sortsel"
+              onchange="setSort(this.value)">
+            <option value="est">Price est.</option>
+            <option value="assessed">Assessed</option>
+            <option value="year">Year built</option>
+            <option value="sqft">Sqft</option>
+            <option value="lot">Lot size</option>
+          </select></span>
+          <button class="ctl dir" aria-label="Reverse sort order"
+            title="Reverse sort order" onclick="flipDir(this)">↑</button>
+        </span>
+      </span>
+      <span class="ctl-lbl yr"><label for="yrmin">Built</label>
         <input class="ctl" id="yrmin" inputmode="numeric" maxlength="4"
           placeholder="min" aria-label="Built after year" oninput="setYears()">
         –
