@@ -56,7 +56,10 @@
   .hdr-row:first-child { margin-top: 0; }
   /* row 1 = identity + view: content-sized, never wraps, never separates */
   .hdr-row.primary { justify-content: space-between; flex-wrap: nowrap; }
-  .hdr-row input[type=search] { flex: 1; min-width: 130px; padding: 8px 12px;
+  /* street filter is a nice-to-have: it takes leftover row space, capped —
+     never a whole row of its own */
+  .hdr-row input[type=search] { flex: 1 1 110px; min-width: 110px;
+    max-width: 190px; padding: 8px 12px;
     border: 1px solid var(--line); border-radius: 8px; background: var(--card);
     color: var(--ink); min-height: 44px; }
   .seg { display: flex; border: 1px solid var(--line); border-radius: 8px;
@@ -228,8 +231,8 @@
     .links a:hover { text-decoration: underline; }
     .donetoggle:hover { color: var(--ink); }
   }
-  /* phones: five control rows would leave no room under a sticky header —
-     let it scroll away; give the mode tabs their own full-width row */
+  /* phones: the merged filter row wraps to several lines — a sticky header
+     that tall would eat the viewport; let it scroll away */
   @media (max-width: 540px) {
     header { position: static; }
   }
@@ -354,8 +357,8 @@ function recordSave(pid, verdict, name) {
 let who = localStorage.getItem("hh_who") || "";
 
 // ---- list view state ----
-const view = { mode: "off", town: "All", road: "any", sort: "est", dir: "asc",
-               yrMin: null, yrMax: null, q: "", showDone: false };
+const view = { mode: "off", town: "All", road: "any", beds: null, sort: "est",
+               dir: "asc", yrMin: null, yrMax: null, q: "", showDone: false };
 const SORT_KEYS = {
   est:      p => p.price_estimate,
   assessed: p => p.assessed_value,
@@ -614,14 +617,9 @@ window.setMode = m => {
   renderList();
 };
 
-window.setTown = t => {
-  view.town = t;
-  for (const b of document.querySelectorAll("#townseg button"))
-    b.classList.toggle("on", b.dataset.town === t);
-  renderList();
-};
-
+window.setTown = t => { view.town = t; renderList(); };
 window.setRoad = r => { view.road = r; renderList(); };
+window.setBeds = b => { view.beds = b === "any" ? null : +b; renderList(); };
 window.setSort = s => { view.sort = s; renderList(); };
 window.flipDir = btn => {
   view.dir = view.dir === "asc" ? "desc" : "asc";
@@ -665,6 +663,7 @@ function passesFilters(p) {
   }
   if (view.road === "res" && !(p.road_fclass === 7)) return false;
   if (view.road === "main" && !(p.road_fclass != null && p.road_fclass <= 6)) return false;
+  if (view.beds !== null && !(p.bedrooms >= view.beds)) return false;
   return true;
 }
 
@@ -720,30 +719,31 @@ function renderShell() {
       </span>
     </div>
     <div class="hdr-row">
-      <span class="seg" id="townseg" role="group" aria-label="Town">
-        ${["All", ...TOWNS].map(t =>
-          `<button data-town="${t}" class="${view.town === t ? "on" : ""}"
-             onclick="setTown('${t}')">${t}</button>`).join("")}
-      </span>
-      <input type="search" placeholder="Filter by address…" aria-label="Filter by address"
-        autocomplete="off" spellcheck="false" oninput="filterCards(this.value)">
-    </div>
-    <div class="hdr-row">
+      <span class="selwrap"><select class="ctl" aria-label="Town"
+          onchange="setTown(this.value)">
+        ${["All", ...TOWNS].map(t => `<option value="${t}"
+           ${view.town === t ? "selected" : ""}>${t === "All" ? "All towns" : t}</option>`).join("")}
+      </select></span>
       <span class="selwrap"><select class="ctl" aria-label="Road type"
           onchange="setRoad(this.value)">
-        <option value="any">Any road</option>
-        <option value="res">Residential</option>
-        <option value="main">Main road</option>
+        <option value="any" ${view.road === "any" ? "selected" : ""}>Any road</option>
+        <option value="res" ${view.road === "res" ? "selected" : ""}>Residential</option>
+        <option value="main" ${view.road === "main" ? "selected" : ""}>Main road</option>
+      </select></span>
+      <span class="selwrap"><select class="ctl" aria-label="Minimum bedrooms"
+          onchange="setBeds(this.value)">
+        <option value="any" ${view.beds === null ? "selected" : ""}>Any beds</option>
+        ${[3, 4, 5].map(n => `<option value="${n}"
+           ${view.beds === n ? "selected" : ""}>${n}+ beds</option>`).join("")}
       </select></span>
       <span class="ctl-lbl"><label for="sortsel">Sort</label>
         <span class="sortgrp">
           <span class="selwrap"><select class="ctl" id="sortsel"
               onchange="setSort(this.value)">
-            <option value="est">Price est.</option>
-            <option value="assessed">Assessed</option>
-            <option value="year">Year built</option>
-            <option value="sqft">Sqft</option>
-            <option value="lot">Lot size</option>
+            ${[["est", "Price est."], ["assessed", "Assessed"],
+               ["year", "Year built"], ["sqft", "Sqft"], ["lot", "Lot size"]]
+              .map(([v, l]) => `<option value="${v}"
+               ${view.sort === v ? "selected" : ""}>${l}</option>`).join("")}
           </select></span>
           <button class="ctl dir" aria-label="Reverse sort order"
             title="Reverse sort order" onclick="flipDir(this)">↑</button>
@@ -756,6 +756,8 @@ function renderShell() {
         <input class="ctl" id="yrmax" inputmode="numeric" maxlength="4"
           placeholder="max" aria-label="Built before year" oninput="setYears()">
       </span>
+      <input type="search" placeholder="Street…" aria-label="Filter by street name"
+        autocomplete="off" spellcheck="false" oninput="filterCards(this.value)">
     </div></header><main id="list"></main>`;
   syncThemeBtn();
   renderList();
