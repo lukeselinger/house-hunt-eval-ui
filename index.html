@@ -17,8 +17,12 @@
     --elev: 0 0 0 1px rgb(0 0 0 / 0.05), 0 1px 3px rgb(0 0 0 / 0.05),
             0 4px 10px -4px rgb(0 0 0 / 0.05);
   }
+  /* theme: data-theme on <html> overrides the system preference (set before
+     first paint from localStorage). The two dark blocks below must stay
+     IDENTICAL — one serves system-dark, one serves the manual toggle. */
+  :root[data-theme="light"] { color-scheme: light; }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg: #17181a; --card: #202225; --ink: #ececec; --muted: #9a9a9a;
       --line: #34363a;                  /* separation borders: solid in dark */
       --accent: #4d9a74; --accent-ink: #0e1411;
@@ -27,6 +31,16 @@
       --listed: #e57373; --listed-ink: #1c1012;
       --elev: 0 0 0 1px rgb(255 255 255 / 0.09);   /* shadows -> white ring */
     }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #17181a; --card: #202225; --ink: #ececec; --muted: #9a9a9a;
+    --line: #34363a;
+    --accent: #4d9a74; --accent-ink: #0e1411;
+    --chip: #2b2d31;
+    --warn: #d98a4f; --warn-ink: #1c1206;
+    --listed: #e57373; --listed-ink: #1c1012;
+    --elev: 0 0 0 1px rgb(255 255 255 / 0.09);
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink);
@@ -52,6 +66,13 @@
     transition: background-color 150ms ease-out, color 150ms ease-out; }
   .seg button + button { border-left: 1px solid var(--line); }
   .seg button.on { background: var(--accent); color: var(--accent-ink); }
+  .hdr-right { display: flex; align-items: center; gap: 4px; flex: none; }
+  /* ghost icon button — nice-to-have weight, full 44px hit area */
+  .iconbtn { border: 0; background: none; color: var(--muted);
+    min-width: 44px; min-height: 44px; border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: color 150ms ease-out, background-color 150ms ease-out,
+                transform 150ms ease-out; }
   /* active-profile chip: shows who's recording; switching is behind an
      action sheet — a deliberate act, not a view toggle */
   .who-chip { display: inline-flex; align-items: center; gap: 8px;
@@ -198,6 +219,7 @@
   @media (hover: hover) and (pointer: fine) {
     .seg button:not(.on):hover, .evalbtn:hover, button.ctl:hover,
     .gate button:hover, .who-chip:hover, .sheet .item:hover { background: var(--chip); }
+    .iconbtn:hover { background: var(--chip); color: var(--ink); }
     .opts button:not(.on):not(.fail):hover {
       background: color-mix(in oklch, var(--card) 92%, var(--ink)); }
     .save:not(:disabled):hover,
@@ -238,6 +260,40 @@ const DEMO = new URLSearchParams(location.search).get("demo") === "1";
 const PROP_FIELDS = "id,address,year_built,building_style,sqft,lot_size," +
   "assessed_value,price_estimate,last_sale_date,last_sale_price,on_market," +
   "bedrooms,bathrooms,road_fclass,road_aadt";
+
+// ---- theme: manual override persists; absent = follow system ----
+// (this runs during parse, before first paint — no wrong-theme flash)
+{
+  const t = localStorage.getItem("hh_theme");
+  if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+}
+const themeMQ = matchMedia("(prefers-color-scheme: dark)");
+const currentTheme = () =>
+  document.documentElement.dataset.theme || (themeMQ.matches ? "dark" : "light");
+const SUN_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+  stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/>
+  <path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>`;
+const MOON_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+  stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>`;
+
+window.toggleTheme = () => {
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem("hh_theme", next);
+  syncThemeBtn();
+};
+
+function syncThemeBtn() {
+  const b = document.getElementById("themebtn");
+  if (!b) return;
+  const cur = currentTheme();   // icon shows the ACTIVE theme; label = action
+  b.innerHTML = cur === "dark" ? MOON_ICON : SUN_ICON;
+  b.setAttribute("aria-label",
+    cur === "dark" ? "Switch to light theme" : "Switch to dark theme");
+}
+themeMQ.addEventListener("change", syncThemeBtn);   // system change, no override
 
 const $app = document.getElementById("app");
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -656,11 +712,14 @@ function renderShell() {
         <button data-mode="on" class="${view.mode === "on" ? "on" : ""}"
           onclick="setMode('on')">On market (${c.on})</button>
       </span>
-      <button class="who-chip" id="whochip" aria-haspopup="menu"
-        aria-expanded="false" aria-label="Evaluating as ${esc(who)} — switch person"
-        onclick="openWhoSheet()">
-        <span class="ava" aria-hidden="true">${esc(who[0] || "?")}</span><span class="name">${esc(who)}</span>
-      </button>
+      <span class="hdr-right">
+        <button class="iconbtn" id="themebtn" onclick="toggleTheme()"></button>
+        <button class="who-chip" id="whochip" aria-haspopup="menu"
+          aria-expanded="false" aria-label="Evaluating as ${esc(who)} — switch person"
+          onclick="openWhoSheet()">
+          <span class="ava" aria-hidden="true">${esc(who[0] || "?")}</span><span class="name">${esc(who)}</span>
+        </button>
+      </span>
     </div>
     <div class="hdr-row">
       <span class="seg" id="townseg" role="group" aria-label="Town">
@@ -700,6 +759,7 @@ function renderShell() {
           placeholder="max" aria-label="Built before year" oninput="setYears()">
       </span>
     </div></header><main id="list"></main>`;
+  syncThemeBtn();
   renderList();
 }
 
