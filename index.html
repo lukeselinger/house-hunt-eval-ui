@@ -403,8 +403,6 @@ function homeCard(p, town, inCut, mode, listPrice) {
   const lot = p.lot_size ? (p.lot_size / 43560).toFixed(2) + " ac" : "?";
   const road = p.road_fclass != null && p.road_fclass <= 6
     ? `<span class="tag road">MAIN RD${p.road_aadt ? ` · ${Math.round(p.road_aadt / 1000)}k/day` : ""}</span>` : "";
-  const listed = mode === "off" && p.on_market
-    ? '<span class="tag listed">LISTED</span>' : "";
   const bb = p.bedrooms ? ` · ${p.bedrooms}bd/${Number(p.bathrooms) || "?"}ba` : "";
   const l = links(p.address, town);
   const sold = p.last_sale_price > 1000
@@ -418,7 +416,7 @@ function homeCard(p, town, inCut, mode, listPrice) {
        assessed $${p.assessed_value.toLocaleString()}${sold}`
     : `Assessed $${p.assessed_value.toLocaleString()}${sold}`;
   return `<div class="card" data-addr="${esc(p.address.toLowerCase())}" data-pid="${p.id}">
-    <div class="addr">${esc(p.address)} ${listed} ${road} ${markTags(p.id)}</div>
+    <div class="addr">${esc(p.address)} ${road} ${markTags(p.id)}</div>
     <div class="qual">${esc(styleCase(p.building_style))}${bb}</div>
     <div class="pricerow">${priceRow}</div>
     <dl class="stats">
@@ -770,9 +768,9 @@ function renderList() {
   let html = "";
   if (DEMO) html += `<p class="note">Demo data — saving is disabled.</p>`;
   if (view.mode === "on")
-    html += `<p class="note">Everything currently listed in both towns (any style/size —
-      the watchlist predicate does not apply here). Photos exist: full verdict + your
-      words. List price from the most recent Redfin alert.</p>`;
+    html += `<p class="note">Watchlist homes that are on the market right now —
+      preparation meets opportunity. Photos exist here, so the full verdict +
+      your words applies. List price from the most recent Redfin alert.</p>`;
   let doneHtml = "";
   for (const town of TOWNS) {
     if (view.town !== "All" && view.town !== town) continue;
@@ -786,7 +784,8 @@ function renderList() {
     const rctx = r ? ` <span class="prov">R ${r.r_median} · n=${r.n} · ${r.computed_at.slice(0, 10)}</span>` : "";
     html += `<h2>${town} — ${queue.length} to review${view.mode === "off" ? rctx : ""}</h2>`;
     if (view.mode === "on" && !(homes || []).length)
-      html += `<p class="note">Nothing listed in ${town} right now.</p>`;
+      html += `<p class="note">No watchlist homes listed in ${town} right now —
+        when one lists, it appears here (and leaves the off-market queue).</p>`;
     html += queue.map(p => homeCard(p, town, inCut, view.mode,
       data.listPrice[p.id])).join("");
     if (mine.length && view.showDone)
@@ -853,19 +852,20 @@ async function loadAll() {
   const sold = new Set(soldRows.map(r => r.property_id));
   const R = {};
   for (const r of rRows) if (!R[r.town]) R[r.town] = r;
+  // ONE universe — the watchlist — partitioned by listing state. A home
+  // lives in the off-market gate queue until it lists, then moves to the
+  // on-market view (photos exist -> full evaluation). Non-criteria listings
+  // never enter either view: the shortlist exists to not waste time on them.
   const watch = {}, onmarket = {};
   for (const town of TOWNS) {
-    const [wl, om] = await Promise.all([
-      api("properties", {
-        town: `eq.${town}`, building_style: "ilike.*COLONIAL*",
-        sqft: "gte.1800", last_sale_price: "gt.100000",
-        last_sale_date: `lt.${cutoff}`, price_estimate: `lte.${CEILING}`,
-        select: PROP_FIELDS, order: "price_estimate.asc" }),
-      api("properties", { town: `eq.${town}`, on_market: "eq.true",
-        select: PROP_FIELDS, order: "address.asc" }),
-    ]);
-    watch[town] = { r: R[town], homes: wl.filter(p => !sold.has(p.id)) };
-    onmarket[town] = { r: R[town], homes: om };
+    const wl = await api("properties", {
+      town: `eq.${town}`, building_style: "ilike.*COLONIAL*",
+      sqft: "gte.1800", last_sale_price: "gt.100000",
+      last_sale_date: `lt.${cutoff}`, price_estimate: `lte.${CEILING}`,
+      select: PROP_FIELDS, order: "price_estimate.asc" });
+    const rows = wl.filter(p => !sold.has(p.id));
+    watch[town] = { r: R[town], homes: rows.filter(p => p.on_market !== true) };
+    onmarket[town] = { r: R[town], homes: rows.filter(p => p.on_market === true) };
   }
   const onmIds = TOWNS.flatMap(t => onmarket[t].homes.map(p => p.id));
   const listPrice = {};
