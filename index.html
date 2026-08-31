@@ -107,13 +107,29 @@
   main { max-width: 720px; margin: 0 auto; padding: 10px 12px 60px; }
   h2 { font-size: 15px; margin: 18px 4px 8px; color: var(--muted);
        font-weight: 600; font-variant-numeric: tabular-nums; }
+  h2 .prov { font-size: 12px; font-weight: 400; }
   .note { color: var(--muted); font-size: 13px; margin: 8px 4px; }
   .card { background: var(--card); border-radius: 10px; box-shadow: var(--elev);
           padding: 12px 14px; margin-bottom: 10px; }
   .addr { font-weight: 650; font-size: 15px; }
-  .meta, .price { color: var(--muted); font-size: 13px; margin-top: 2px;
-                  font-variant-numeric: tabular-nums; }
-  .price b { color: var(--ink); font-size: 14px; }
+  .qual { color: var(--muted); font-size: 13px; margin-top: 1px; }
+  /* the decision figure leads; context is fine print below the stat grid */
+  .pricerow { display: flex; align-items: baseline; gap: 8px; margin-top: 8px;
+              color: var(--muted); font-size: 13px;
+              font-variant-numeric: tabular-nums; }
+  .pricerow .amt { font-size: 17px; font-weight: 650; color: var(--ink);
+                   letter-spacing: -0.01em; }
+  /* comparable attributes in fixed columns — same template every card, so
+     one column scans vertically across cards */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0 12px;
+           margin: 10px 0 0; max-width: 420px; }
+  .stats div { min-width: 0; }
+  .stats dt { font-size: 12px; text-transform: uppercase;
+              letter-spacing: 0.05em; color: var(--muted); }
+  .stats dd { margin: 0; font-size: 15px; font-variant-numeric: tabular-nums;
+              white-space: nowrap; }
+  .fine { color: var(--muted); font-size: 12px; margin-top: 8px;
+          font-variant-numeric: tabular-nums; }
   .tag { display: inline-block; font-size: 12px; padding: 1px 7px;
          border-radius: 10px; background: var(--chip); color: var(--muted);
          letter-spacing: 0.03em; vertical-align: 1px; }
@@ -321,28 +337,41 @@ function markTags(pid) {
   }).join(" ");
 }
 
+const styleCase = s => String(s || "?").toLowerCase()
+  .replace(/(^|\s)\S/g, c => c.toUpperCase());
+
 function homeCard(p, town, inCut, mode, listPrice) {
   const tier = p.assessed_value <= inCut ? "in" : "watch";
   const saleYr = (p.last_sale_date || "").slice(0, 4);
-  const tenure = saleYr ? new Date().getFullYear() - +saleYr : "?";
+  const tenure = saleYr ? `${new Date().getFullYear() - +saleYr}y` : "?";
   const lot = p.lot_size ? (p.lot_size / 43560).toFixed(2) + " ac" : "?";
   const road = p.road_fclass != null && p.road_fclass <= 6
     ? `<span class="tag road">MAIN RD${p.road_aadt ? ` · ${Math.round(p.road_aadt / 1000)}k/day` : ""}</span>` : "";
+  const listed = mode === "off" && p.on_market
+    ? '<span class="tag listed">LISTED</span>' : "";
   const bb = p.bedrooms ? ` · ${p.bedrooms}bd/${Number(p.bathrooms) || "?"}ba` : "";
   const l = links(p.address, town);
-  const priceLine = mode === "on"
-    ? `<b>${listPrice ? "$" + listPrice.toLocaleString() : "price TBD"}</b> list
-       · est $${(p.price_estimate || 0).toLocaleString()}
-       · $${p.assessed_value.toLocaleString()} assessed`
-    : `$${p.assessed_value.toLocaleString()} assessed →
-       <b>$${p.price_estimate.toLocaleString()}</b> est
+  const sold = p.last_sale_price > 1000
+    ? ` · sold ${saleYr} for $${p.last_sale_price.toLocaleString()}` : "";
+  const priceRow = mode === "on"
+    ? `<span class="amt">${listPrice ? "$" + listPrice.toLocaleString() : "price TBD"}</span> list`
+    : `<span class="amt">$${p.price_estimate.toLocaleString()}</span> est
        <span class="tag ${tier}">${tier}</span>`;
+  const fine = mode === "on"
+    ? `Est $${(p.price_estimate || 0).toLocaleString()} ·
+       assessed $${p.assessed_value.toLocaleString()}${sold}`
+    : `Assessed $${p.assessed_value.toLocaleString()}${sold}`;
   return `<div class="card" data-addr="${esc(p.address.toLowerCase())}" data-pid="${p.id}">
-    <div class="addr">${esc(p.address)} ${road} ${markTags(p.id)}</div>
-    <div class="meta">${p.year_built || "?"} · ${esc(p.building_style || "?")}${bb} ·
-      ${(p.sqft || 0).toLocaleString()} sqft · ${lot} · last sale ${saleYr}
-      $${(p.last_sale_price || 0).toLocaleString()} (${tenure}y)</div>
-    <div class="price">${priceLine}</div>
+    <div class="addr">${esc(p.address)} ${listed} ${road} ${markTags(p.id)}</div>
+    <div class="qual">${esc(styleCase(p.building_style))}${bb}</div>
+    <div class="pricerow">${priceRow}</div>
+    <dl class="stats">
+      <div><dt>Sqft</dt><dd>${(p.sqft || 0).toLocaleString()}</dd></div>
+      <div><dt>Lot</dt><dd>${lot}</dd></div>
+      <div><dt>Built</dt><dd>${p.year_built || "?"}</dd></div>
+      <div><dt>Tenure</dt><dd>${tenure}</dd></div>
+    </dl>
+    <div class="fine">${fine}</div>
     <div class="row2">
       <span class="links"><a href="${l.z}" target="_blank" rel="noopener">Zillow</a>
         <a href="${l.r}" target="_blank" rel="noopener">Redfin</a>
@@ -694,7 +723,7 @@ function renderList() {
     const mine = rows.filter(p => marks.get(p.id)?.has(who));
     total += queue.length;
     doneTotal += mine.length;
-    const rctx = r ? ` (R ${r.r_median}, n=${r.n}, ${r.computed_at.slice(0, 10)})` : "";
+    const rctx = r ? ` <span class="prov">R ${r.r_median} · n=${r.n} · ${r.computed_at.slice(0, 10)}</span>` : "";
     html += `<h2>${town} — ${queue.length} to review${view.mode === "off" ? rctx : ""}</h2>`;
     if (view.mode === "on" && !(homes || []).length)
       html += `<p class="note">Nothing listed in ${town} right now.</p>`;
@@ -711,10 +740,9 @@ function renderList() {
       ${view.showDone ? "▾ Hide" : "▸ Show"} ${doneTotal} already evaluated by ${esc(who)}</button>`;
   html += doneHtml;
   html += `<p class="note" id="nomatch" hidden>No homes match this filter.</p>`;
-  html += `<p class="note">Queues are per person: homes ${esc(who)} has evaluated drop
-    out of ${esc(who)}'s list but stay in the other queue. ✓ tags show who has
-    already weighed in. Ceiling $${CEILING.toLocaleString()} · estimates =
-    assessed × R · MAIN RD from MassDOT road class (peak daily traffic shown).</p>`;
+  html += `<p class="note">Queues are per person — homes you evaluate leave your
+    queue and stay in the other. Ceiling $${CEILING.toLocaleString()} ·
+    est = assessed × R · MAIN RD per MassDOT (peak daily traffic).</p>`;
   document.getElementById("list").innerHTML = html;
   applyAddrFilter();
 }
