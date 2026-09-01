@@ -329,6 +329,17 @@ async function api(path, params, opts = {}) {
 const streetOf = a =>
   a.replace(/\s*\(UNIT[^)]*\)$/, "").replace(/^[\d-]+[A-Z]?\s+/, "");
 
+// street_forms vocabulary -> human labels (lowercase; sentence-cased in the
+// filter select). Fallback: raw value.
+const FORM_LABELS = {
+  cul_de_sac: "cul-de-sac", loop: "loop",
+  curved_subdivision: "curved subdivision", grid: "grid",
+  collector: "collector", country_road: "country road",
+  country_dead_end: "country dead-end", private_way: "private way",
+  stub: "short dead-end",
+};
+const formLabel = f => FORM_LABELS[f] || f;
+
 // ---- link construction (mirrors pipeline/watchlist_export.py links_md) ----
 function displayAddr(addr) {
   const words = { AV: "Ave", WM: "William" };
@@ -365,8 +376,9 @@ function recordSave(pid, verdict, name) {
 let who = localStorage.getItem("hh_who") || "";
 
 // ---- list view state ----
-const view = { mode: "off", town: "All", road: "any", beds: null, sort: "est",
-               dir: "asc", yrMin: null, yrMax: null, q: "", showDone: false };
+const view = { mode: "off", town: "All", road: "any", beds: null, form: "any",
+               sort: "est", dir: "asc", yrMin: null, yrMax: null, q: "",
+               showDone: false };
 const SORT_KEYS = {
   est:      p => p.price_estimate,
   assessed: p => p.assessed_value,
@@ -417,11 +429,16 @@ function homeCard(p, town, inCut, mode, listPrice) {
   const smallLot = p.lot_size && p.lot_size < SMALL_LOT_SF
     ? `<span class="tag">SMALL LOT</span>` : "";
   const sm = data.streets[town + "|" + streetOf(p.address)];
-  const streetLine = sm && sm.median_far != null
-    ? `<div class="fine">Street: median FAR ${Number(sm.median_far).toFixed(2)}
-       ${Number(sm.median_far) >= HIGH_BULK_FAR ? '<span class="tag">HIGH BULK</span> ' : ""}·
-       ${sm.parcel_count} parcels · built ~${sm.median_year_built}</div>`
-    : "";
+  const streetParts = [];
+  if (sm?.form) streetParts.push(esc(formLabel(sm.form)));
+  if (sm?.median_far != null)
+    streetParts.push(`median FAR ${Number(sm.median_far).toFixed(2)}` +
+      (Number(sm.median_far) >= HIGH_BULK_FAR
+        ? ' <span class="tag">HIGH BULK</span>' : ""));
+  if (sm?.parcel_count) streetParts.push(`${sm.parcel_count} parcels`);
+  if (sm?.median_year_built) streetParts.push(`built ~${sm.median_year_built}`);
+  const streetLine = streetParts.length
+    ? `<div class="fine">Street: ${streetParts.join(" · ")}</div>` : "";
   const bb = p.bedrooms ? ` · ${p.bedrooms}bd/${Number(p.bathrooms) || "?"}ba` : "";
   const l = links(p.address, town);
   const sold = p.last_sale_price > 1000
@@ -637,6 +654,7 @@ window.setMode = m => {
 window.setTown = t => { view.town = t; renderList(); };
 window.setRoad = r => { view.road = r; renderList(); };
 window.setBeds = b => { view.beds = b === "any" ? null : +b; renderList(); };
+window.setForm = f => { view.form = f; renderList(); };
 window.setSort = s => { view.sort = s; renderList(); };
 window.flipDir = btn => {
   view.dir = view.dir === "asc" ? "desc" : "asc";
@@ -672,7 +690,7 @@ function applyAddrFilter() {
   if (none) none.hidden = shown > 0 || !document.querySelector(".card");
 }
 
-function passesFilters(p) {
+function passesFilters(p, town) {
   if (view.yrMin !== null || view.yrMax !== null) {
     if (!p.year_built) return false;
     if (view.yrMin !== null && p.year_built < view.yrMin) return false;
@@ -681,6 +699,9 @@ function passesFilters(p) {
   if (view.road === "res" && !(p.road_fclass === 7)) return false;
   if (view.road === "main" && !(p.road_fclass != null && p.road_fclass <= 6)) return false;
   if (view.beds !== null && !(p.bedrooms >= view.beds)) return false;
+  if (view.form !== "any" &&
+      data.streets[town + "|" + streetOf(p.address)]?.form !== view.form)
+    return false;
   return true;
 }
 
@@ -716,6 +737,19 @@ function counts() {
   return c;
 }
 
+function presentForms() {
+  // filter options = only forms that actually occur among loaded homes'
+  // streets, so no option can ever match nothing
+  const seen = new Set();
+  for (const town of TOWNS)
+    for (const src of [data.watch, data.onmarket])
+      for (const p of src[town]?.homes || []) {
+        const f = data.streets[town + "|" + streetOf(p.address)]?.form;
+        if (f) seen.add(f);
+      }
+  return [...seen].sort((a, b) => formLabel(a).localeCompare(formLabel(b)));
+}
+
 function renderShell() {
   const c = counts();
   $app.innerHTML = `<header>
@@ -746,6 +780,12 @@ function renderShell() {
         <option value="any" ${view.road === "any" ? "selected" : ""}>Any road</option>
         <option value="res" ${view.road === "res" ? "selected" : ""}>Residential</option>
         <option value="main" ${view.road === "main" ? "selected" : ""}>Main road</option>
+      </select></span>
+      <span class="selwrap"><select class="ctl" aria-label="Street type"
+          onchange="setForm(this.value)">
+        <option value="any" ${view.form === "any" ? "selected" : ""}>Any street</option>
+        ${presentForms().map(f => `<option value="${f}"
+           ${view.form === f ? "selected" : ""}>${esc(formLabel(f).charAt(0).toUpperCase() + formLabel(f).slice(1))}</option>`).join("")}
       </select></span>
       <span class="selwrap"><select class="ctl" aria-label="Minimum bedrooms"
           onchange="setBeds(this.value)">
@@ -795,7 +835,7 @@ function renderList() {
     if (view.town !== "All" && view.town !== town) continue;
     const { r, homes } = src[town] || { homes: [] };
     const inCut = r ? CEILING / Number(r.r_p75) : Infinity;
-    const rows = sortHomes((homes || []).filter(passesFilters));
+    const rows = sortHomes((homes || []).filter(p => passesFilters(p, town)));
     const queue = rows.filter(p => !(marks.get(p.id)?.has(who)));
     const mine = rows.filter(p => marks.get(p.id)?.has(who));
     total += queue.length;
@@ -871,8 +911,13 @@ async function loadAll() {
     api("street_metrics", { town: `in.(${TOWNS.join(",")})`,
       select: "town,street,parcel_count,median_far,median_year_built" }),
   ]);
+  const formRows = await api("street_forms", {
+    town: `in.(${TOWNS.join(",")})`, select: "town,street,form" });
   const streets = {};
   for (const s of streetRows) streets[s.town + "|" + s.street] = s;
+  for (const f of formRows)
+    (streets[f.town + "|" + f.street] =
+      streets[f.town + "|" + f.street] || {}).form = f.form;
   marks = new Map();
   for (const m of markRows) addMark(m.property_id, m.nominated_by);
   const sold = new Set(soldRows.map(r => r.property_id));
@@ -928,10 +973,10 @@ function demoData() {
     },
     listPrice: { 4: 999000 },
     streets: {
-      "Wenham|TOPSFIELD RD": { parcel_count: 78, median_far: 0.058, median_year_built: 1954 },
-      "Wenham|LAKE AV": { parcel_count: 14, median_far: 0.126, median_year_built: 1952 },
-      "Hamilton|UNTITLED ST": { parcel_count: 30, median_far: 0.19, median_year_built: 1978 },
-      "Wenham|DEMO WAY": { parcel_count: 9, median_far: 0.09, median_year_built: 1990 },
+      "Wenham|TOPSFIELD RD": { parcel_count: 78, median_far: 0.058, median_year_built: 1954, form: "collector" },
+      "Wenham|LAKE AV": { parcel_count: 14, median_far: 0.126, median_year_built: 1952, form: "grid" },
+      "Hamilton|UNTITLED ST": { parcel_count: 30, median_far: 0.19, median_year_built: 1978, form: "grid" },
+      "Wenham|DEMO WAY": { parcel_count: 9, median_far: 0.09, median_year_built: 1990, form: "cul_de_sac" },
     },
   };
 }
