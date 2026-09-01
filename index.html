@@ -263,6 +263,10 @@ const DEMO = new URLSearchParams(location.search).get("demo") === "1";
 const PROP_FIELDS = "id,address,year_built,building_style,sqft,lot_size," +
   "assessed_value,price_estimate,last_sale_date,last_sale_price,on_market," +
   "bedrooms,bathrooms,road_fclass,road_aadt";
+// data-backed category tags — INFORMATIVE ONLY, never filters (Luke's rule,
+// 2026-08-31). Thresholds ratified against the calibration set.
+const SMALL_LOT_SF = Math.round(0.30 * 43560);   // parcel-level: small lot
+const HIGH_BULK_FAR = 0.18;                      // street-level: high bulk
 
 // ---- theme: manual override persists; absent = follow system ----
 // (this runs during parse, before first paint — no wrong-theme flash)
@@ -320,6 +324,10 @@ async function api(path, params, opts = {}) {
   if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
   return opts.raw ? r : r.json();
 }
+
+// address -> street name (mirrors the street_metrics view's extraction)
+const streetOf = a =>
+  a.replace(/\s*\(UNIT[^)]*\)$/, "").replace(/^[\d-]+[A-Z]?\s+/, "");
 
 // ---- link construction (mirrors pipeline/watchlist_export.py links_md) ----
 function displayAddr(addr) {
@@ -406,6 +414,14 @@ function homeCard(p, town, inCut, mode, listPrice) {
   const lot = p.lot_size ? (p.lot_size / 43560).toFixed(2) + " ac" : "?";
   const road = p.road_fclass != null && p.road_fclass <= 6
     ? `<span class="tag road">MAIN RD${p.road_aadt ? ` · ${Math.round(p.road_aadt / 1000)}k/day` : ""}</span>` : "";
+  const smallLot = p.lot_size && p.lot_size < SMALL_LOT_SF
+    ? `<span class="tag">SMALL LOT</span>` : "";
+  const sm = data.streets[town + "|" + streetOf(p.address)];
+  const streetLine = sm && sm.median_far != null
+    ? `<div class="fine">Street: median FAR ${Number(sm.median_far).toFixed(2)}
+       ${Number(sm.median_far) >= HIGH_BULK_FAR ? '<span class="tag">HIGH BULK</span> ' : ""}·
+       ${sm.parcel_count} parcels · built ~${sm.median_year_built}</div>`
+    : "";
   const bb = p.bedrooms ? ` · ${p.bedrooms}bd/${Number(p.bathrooms) || "?"}ba` : "";
   const l = links(p.address, town);
   const sold = p.last_sale_price > 1000
@@ -419,7 +435,7 @@ function homeCard(p, town, inCut, mode, listPrice) {
        assessed $${p.assessed_value.toLocaleString()}${sold}`
     : `Assessed $${p.assessed_value.toLocaleString()}${sold}`;
   return `<div class="card" data-addr="${esc(p.address.toLowerCase())}" data-pid="${p.id}">
-    <div class="addr">${esc(p.address)} ${road} ${markTags(p.id)}</div>
+    <div class="addr">${esc(p.address)} ${road} ${smallLot} ${markTags(p.id)}</div>
     <div class="qual">${esc(styleCase(p.building_style))}${bb}</div>
     <div class="pricerow">${priceRow}</div>
     <dl class="stats">
@@ -429,6 +445,7 @@ function homeCard(p, town, inCut, mode, listPrice) {
       <div><dt>Tenure</dt><dd>${tenure}</dd></div>
     </dl>
     <div class="fine">${fine}</div>
+    ${streetLine}
     <div class="row2">
       <span class="links"><a href="${l.z}" target="_blank" rel="noopener">Zillow</a>
         <a href="${l.r}" target="_blank" rel="noopener">Redfin</a>
@@ -803,7 +820,10 @@ function renderList() {
   html += `<p class="note" id="nomatch" hidden>No homes match this filter.</p>`;
   html += `<p class="note">Queues are per person — homes you evaluate leave your
     queue and stay in the other. Ceiling $${CEILING.toLocaleString()} ·
-    est = assessed × R · MAIN RD per MassDOT (peak daily traffic).</p>`;
+    est = assessed × R · MAIN RD per MassDOT (peak daily traffic) ·
+    FAR = living sqft ÷ lot sqft; SMALL LOT (&lt; 0.30 ac) and HIGH BULK
+    (street median FAR ≥ ${HIGH_BULK_FAR}) are informative tags —
+    prompts to look closer on Street View, never filters.</p>`;
   document.getElementById("list").innerHTML = html;
   applyAddrFilter();
 }
@@ -843,12 +863,16 @@ async function main() {
 async function loadAll() {
   const cutoff = new Date(Date.now() - TENURE_YEARS * 365.25 * 864e5)
     .toISOString().slice(0, 10);
-  const [soldRows, rRows, markRows] = await Promise.all([
+  const [soldRows, rRows, markRows, streetRows] = await Promise.all([
     api("listing_events", { event: "eq.sold", select: "property_id" }),
     api("town_price_ratios", { town: `in.(${TOWNS.join(",")})`,
       select: "town,r_median,r_p75,n,computed_at", order: "computed_at.desc" }),
     api("eval_marks", { select: "property_id,nominated_by" }),
+    api("street_metrics", { town: `in.(${TOWNS.join(",")})`,
+      select: "town,street,parcel_count,median_far,median_year_built" }),
   ]);
+  const streets = {};
+  for (const s of streetRows) streets[s.town + "|" + s.street] = s;
   marks = new Map();
   for (const m of markRows) addMark(m.property_id, m.nominated_by);
   const sold = new Set(soldRows.map(r => r.property_id));
@@ -880,7 +904,7 @@ async function loadAll() {
       if (e.list_price && !(e.property_id in listPrice))
         listPrice[e.property_id] = e.list_price;
   }
-  return { watch, onmarket, listPrice };
+  return { watch, onmarket, listPrice, streets };
 }
 
 function demoData() {
@@ -903,6 +927,12 @@ function demoData() {
       Hamilton: { r, homes: [] },
     },
     listPrice: { 4: 999000 },
+    streets: {
+      "Wenham|TOPSFIELD RD": { parcel_count: 78, median_far: 0.058, median_year_built: 1954 },
+      "Wenham|LAKE AV": { parcel_count: 14, median_far: 0.126, median_year_built: 1952 },
+      "Hamilton|UNTITLED ST": { parcel_count: 30, median_far: 0.19, median_year_built: 1978 },
+      "Wenham|DEMO WAY": { parcel_count: 9, median_far: 0.09, median_year_built: 1990 },
+    },
   };
 }
 
