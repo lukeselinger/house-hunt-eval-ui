@@ -111,6 +111,32 @@
   @media (pointer: coarse) {
     header input, header select { font-size: 16px; }
   }
+  /* mobile filter disclosure: below 640px the inline filter set collapses
+     to a Filters button + active-filter summary; controls move into the
+     bottom sheet. Hidden controls, visible state (DESIGN.md 2026-09-01). */
+  .filters-inline { display: contents; }
+  .filterbar { display: none; align-items: center; gap: 10px; min-width: 0; }
+  .fsummary { color: var(--muted); font-size: 13px; white-space: nowrap;
+              overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  @media (max-width: 639px) {
+    .filters-inline { display: none; }
+    .filterbar { display: flex; flex: 1; }
+  }
+  .sheet.filters { padding: 14px 16px 8px; max-height: 80dvh;
+                   overflow-y: auto; }
+  .sheet.filters select, .sheet.filters input { font-size: 16px; }
+  .sheet.filters .selwrap { display: flex; }
+  .sheet.filters select.ctl, .sheet.filters input[type=search] { width: 100%; }
+  .sheet.filters .sortgrp { display: flex; }
+  .sheet.filters .sortgrp .selwrap { flex: 1; }
+  .sheet.filters .yr { display: flex; align-items: center; gap: 6px;
+                       color: var(--muted); }
+  .sheet.filters .yr input { flex: 1; width: auto; min-width: 0;
+                             text-align: center;
+                             font-variant-numeric: tabular-nums; }
+  .sheet.filters input[type=search] { padding: 8px 12px; min-height: 44px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--card); color: var(--ink); }
   /* selects draw their own chevron so both edges share the same padding */
   .selwrap { position: relative; display: inline-flex; }
   .selwrap::after { content: "▾"; position: absolute; right: 12px; top: 50%;
@@ -656,28 +682,32 @@ window.setRoad = r => { view.road = r; renderList(); };
 window.setBeds = b => { view.beds = b === "any" ? null : +b; renderList(); };
 window.setForm = f => { view.form = f; renderList(); };
 window.setSort = s => { view.sort = s; renderList(); };
-window.flipDir = btn => {
+window.flipDir = () => {
   view.dir = view.dir === "asc" ? "desc" : "asc";
-  btn.textContent = view.dir === "asc" ? "↑" : "↓";
+  for (const b of document.querySelectorAll(".sortgrp .dir"))
+    b.textContent = view.dir === "asc" ? "↑" : "↓";
   renderList();
 };
 window.toggleDone = () => { view.showDone = !view.showDone; renderList(); };
 
 let yrTimer;
-window.setYears = () => {
+window.setYears = el => {
   clearTimeout(yrTimer);
   yrTimer = setTimeout(() => {
-    const val = id => {
-      const v = document.getElementById(id).value.trim();
-      return /^\d{4}$/.test(v) ? +v : null;   // apply only complete years
-    };
-    view.yrMin = val("yrmin");
-    view.yrMax = val("yrmax");
+    // read this control's own pair — the inline and sheet copies coexist
+    const [mn, mx] = el.closest(".yr").querySelectorAll("input");
+    const val = i => /^\d{4}$/.test(i.value.trim()) ? +i.value.trim() : null;
+    view.yrMin = val(mn);                     // apply only complete years
+    view.yrMax = val(mx);
     renderList();
   }, 300);
 };
 
-window.filterCards = q => { view.q = q.trim().toLowerCase(); applyAddrFilter(); };
+window.filterCards = q => {
+  view.q = q.trim().toLowerCase();
+  applyAddrFilter();
+  syncFilterSummary();
+};
 
 function applyAddrFilter() {
   let shown = 0;
@@ -750,6 +780,102 @@ function presentForms() {
   return [...seen].sort((a, b) => formLabel(a).localeCompare(formLabel(b)));
 }
 
+// ---- filter controls: ONE markup source, rendered inline (wide) and in
+// the filter sheet (narrow) — sfx suffixes ids so the copies never collide.
+const selTown = () => `<span class="selwrap"><select class="ctl"
+    aria-label="Town" onchange="setTown(this.value)">
+  ${["All", ...TOWNS].map(t => `<option value="${t}"
+     ${view.town === t ? "selected" : ""}>${t === "All" ? "All towns" : t}</option>`).join("")}
+  </select></span>`;
+const selRoad = () => `<span class="selwrap"><select class="ctl"
+    aria-label="Road type" onchange="setRoad(this.value)">
+  <option value="any" ${view.road === "any" ? "selected" : ""}>Any road</option>
+  <option value="res" ${view.road === "res" ? "selected" : ""}>Residential</option>
+  <option value="main" ${view.road === "main" ? "selected" : ""}>Main road</option>
+  </select></span>`;
+const selForm = () => `<span class="selwrap"><select class="ctl"
+    aria-label="Street type" onchange="setForm(this.value)">
+  <option value="any" ${view.form === "any" ? "selected" : ""}>Any street</option>
+  ${presentForms().map(f => `<option value="${f}"
+     ${view.form === f ? "selected" : ""}>${esc(formLabel(f).charAt(0).toUpperCase() + formLabel(f).slice(1))}</option>`).join("")}
+  </select></span>`;
+const selBeds = () => `<span class="selwrap"><select class="ctl"
+    aria-label="Minimum bedrooms" onchange="setBeds(this.value)">
+  <option value="any" ${view.beds === null ? "selected" : ""}>Any beds</option>
+  ${[3, 4, 5].map(n => `<option value="${n}"
+     ${view.beds === n ? "selected" : ""}>${n}+ beds</option>`).join("")}
+  </select></span>`;
+const sortGrp = sfx => `<span class="sortgrp">
+  <span class="selwrap"><select class="ctl" id="sortsel${sfx}"
+      aria-label="Sort by" onchange="setSort(this.value)">
+    ${[["est", "Price est."], ["assessed", "Assessed"], ["year", "Year built"],
+       ["sqft", "Sqft"], ["lot", "Lot size"]]
+      .map(([v, l]) => `<option value="${v}"
+       ${view.sort === v ? "selected" : ""}>${l}</option>`).join("")}
+  </select></span>
+  <button class="ctl dir" aria-label="Reverse sort order"
+    title="Reverse sort order" onclick="flipDir()">${view.dir === "asc" ? "↑" : "↓"}</button></span>`;
+const yrInputs = sfx => `<input class="ctl" id="yrmin${sfx}" inputmode="numeric"
+    maxlength="4" placeholder="min" aria-label="Built after year"
+    value="${view.yrMin ?? ""}" oninput="setYears(this)">
+  –
+  <input class="ctl" id="yrmax${sfx}" inputmode="numeric" maxlength="4"
+    placeholder="max" aria-label="Built before year"
+    value="${view.yrMax ?? ""}" oninput="setYears(this)">`;
+const qInput = () => `<input type="search" placeholder="Street…"
+  aria-label="Filter by street name" autocomplete="off" spellcheck="false"
+  value="${esc(view.q)}" oninput="filterCards(this.value)">`;
+
+window.openFilterSheet = () => {
+  if (document.getElementById("filtersheet")) return;
+  const grp = (label, ctl) =>
+    `<label class="grp"><span class="lbl">${label}</span>${ctl}</label>`;
+  const el = document.createElement("div");
+  el.id = "filtersheet";
+  el.innerHTML = `<div class="sheet-backdrop" onclick="closeFilterSheet()"></div>
+    <div class="sheet filters" role="dialog" aria-label="Filters">
+      ${grp("Town", selTown())}${grp("Road", selRoad())}
+      ${grp("Street type", selForm())}${grp("Bedrooms", selBeds())}
+      <div class="grp"><span class="lbl" id="slbl">Sort</span>${sortGrp("-s")}</div>
+      <div class="grp"><span class="lbl">Built</span>
+        <span class="yr">${yrInputs("-s")}</span></div>
+      ${grp("Street name", qInput())}
+      <button class="item cancel" onclick="closeFilterSheet()">Done</button>
+    </div>`;
+  document.body.appendChild(el);
+  document.getElementById("filtersbtn").setAttribute("aria-expanded", "true");
+  document.addEventListener("keydown", filterSheetKey);
+  el.querySelector("select")?.focus();
+};
+
+window.closeFilterSheet = () => {
+  document.getElementById("filtersheet")?.remove();
+  document.removeEventListener("keydown", filterSheetKey);
+  renderShell();          // re-sync the inline copies of every control
+  document.getElementById("filtersbtn")?.focus();
+};
+
+function filterSheetKey(e) {
+  if (e.key === "Escape") closeFilterSheet();
+}
+
+// active-filter summary: hidden controls, visible state
+function syncFilterSummary() {
+  const parts = [];
+  if (view.town !== "All") parts.push(view.town);
+  if (view.road !== "any")
+    parts.push(view.road === "res" ? "residential" : "main road");
+  if (view.form !== "any") parts.push(formLabel(view.form));
+  if (view.beds !== null) parts.push(`${view.beds}+ beds`);
+  if (view.yrMin !== null || view.yrMax !== null)
+    parts.push(`built ${view.yrMin ?? ""}–${view.yrMax ?? ""}`);
+  if (view.q) parts.push(`“${view.q}”`);
+  const btn = document.getElementById("filtersbtn");
+  if (btn) btn.textContent = "Filters" + (parts.length ? ` · ${parts.length}` : "");
+  const sum = document.getElementById("fsummary");
+  if (sum) sum.textContent = parts.join(" · ");
+}
+
 function renderShell() {
   const c = counts();
   $app.innerHTML = `<header>
@@ -770,51 +896,17 @@ function renderShell() {
       </span>
     </div>
     <div class="hdr-row">
-      <span class="selwrap"><select class="ctl" aria-label="Town"
-          onchange="setTown(this.value)">
-        ${["All", ...TOWNS].map(t => `<option value="${t}"
-           ${view.town === t ? "selected" : ""}>${t === "All" ? "All towns" : t}</option>`).join("")}
-      </select></span>
-      <span class="selwrap"><select class="ctl" aria-label="Road type"
-          onchange="setRoad(this.value)">
-        <option value="any" ${view.road === "any" ? "selected" : ""}>Any road</option>
-        <option value="res" ${view.road === "res" ? "selected" : ""}>Residential</option>
-        <option value="main" ${view.road === "main" ? "selected" : ""}>Main road</option>
-      </select></span>
-      <span class="selwrap"><select class="ctl" aria-label="Street type"
-          onchange="setForm(this.value)">
-        <option value="any" ${view.form === "any" ? "selected" : ""}>Any street</option>
-        ${presentForms().map(f => `<option value="${f}"
-           ${view.form === f ? "selected" : ""}>${esc(formLabel(f).charAt(0).toUpperCase() + formLabel(f).slice(1))}</option>`).join("")}
-      </select></span>
-      <span class="selwrap"><select class="ctl" aria-label="Minimum bedrooms"
-          onchange="setBeds(this.value)">
-        <option value="any" ${view.beds === null ? "selected" : ""}>Any beds</option>
-        ${[3, 4, 5].map(n => `<option value="${n}"
-           ${view.beds === n ? "selected" : ""}>${n}+ beds</option>`).join("")}
-      </select></span>
-      <span class="ctl-lbl"><label for="sortsel">Sort</label>
-        <span class="sortgrp">
-          <span class="selwrap"><select class="ctl" id="sortsel"
-              onchange="setSort(this.value)">
-            ${[["est", "Price est."], ["assessed", "Assessed"],
-               ["year", "Year built"], ["sqft", "Sqft"], ["lot", "Lot size"]]
-              .map(([v, l]) => `<option value="${v}"
-               ${view.sort === v ? "selected" : ""}>${l}</option>`).join("")}
-          </select></span>
-          <button class="ctl dir" aria-label="Reverse sort order"
-            title="Reverse sort order" onclick="flipDir(this)">↑</button>
-        </span>
+      <span class="filters-inline">
+        ${selTown()} ${selRoad()} ${selForm()} ${selBeds()}
+        <span class="ctl-lbl"><label for="sortsel">Sort</label>${sortGrp("")}</span>
+        <span class="ctl-lbl yr"><label for="yrmin">Built</label>${yrInputs("")}</span>
+        ${qInput()}
       </span>
-      <span class="ctl-lbl yr"><label for="yrmin">Built</label>
-        <input class="ctl" id="yrmin" inputmode="numeric" maxlength="4"
-          placeholder="min" aria-label="Built after year" oninput="setYears()">
-        –
-        <input class="ctl" id="yrmax" inputmode="numeric" maxlength="4"
-          placeholder="max" aria-label="Built before year" oninput="setYears()">
+      <span class="filterbar">
+        <button class="ctl" id="filtersbtn" aria-haspopup="dialog"
+          aria-expanded="false" onclick="openFilterSheet()">Filters</button>
+        <span class="fsummary" id="fsummary" aria-live="polite"></span>
       </span>
-      <input type="search" placeholder="Street…" aria-label="Filter by street name"
-        autocomplete="off" spellcheck="false" oninput="filterCards(this.value)">
     </div></header><main id="list"></main>`;
   syncThemeBtn();
   renderList();
@@ -866,6 +958,7 @@ function renderList() {
     prompts to look closer on Street View, never filters.</p>`;
   document.getElementById("list").innerHTML = html;
   applyAddrFilter();
+  syncFilterSummary();
 }
 
 function renderGate() {
