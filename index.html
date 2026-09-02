@@ -122,21 +122,33 @@
     .filters-inline { display: none; }
     .filterbar { display: flex; flex: 1; }
   }
-  .sheet.filters { padding: 14px 16px 8px; max-height: 80dvh;
-                   overflow-y: auto; }
-  .sheet.filters select, .sheet.filters input { font-size: 16px; }
-  .sheet.filters .selwrap { display: flex; }
-  .sheet.filters select.ctl, .sheet.filters input[type=search] { width: 100%; }
-  .sheet.filters .sortgrp { display: flex; }
-  .sheet.filters .sortgrp .selwrap { flex: 1; }
-  .sheet.filters .yr { display: flex; align-items: center; gap: 6px;
-                       color: var(--muted); }
-  .sheet.filters .yr input { flex: 1; width: auto; min-width: 0;
-                             text-align: center;
-                             font-variant-numeric: tabular-nums; }
-  .sheet.filters input[type=search] { padding: 8px 12px; min-height: 44px;
+  /* filter drawer: full-viewport blocking takeover (2026-09-02) — opaque,
+     nothing behind it is tappable, so a stray tap can neither dismiss it
+     nor hit the page. Closes only via the apply button or Escape. The
+     CONTAINER takes focus on open, never a control — focusing a select on
+     touch expands its picker, which reads as premature intent. */
+  .drawer { position: fixed; inset: 0; z-index: 101; background: var(--bg);
+    padding: 0 16px max(16px, env(safe-area-inset-bottom));
+    overflow-y: auto; outline: none; animation: drawerIn 200ms ease-out; }
+  @keyframes drawerIn { from { opacity: 0; transform: translateY(20px); } }
+  .drawer-top { display: flex; align-items: center; min-height: 52px; }
+  .drawer-title { font-size: 15px; font-weight: 600; }
+  .drawer select, .drawer input { font-size: 16px; }
+  .drawer .selwrap { display: flex; }
+  .drawer select.ctl, .drawer input[type=search] { width: 100%; }
+  .drawer .sortgrp { display: flex; }
+  .drawer .sortgrp .selwrap { flex: 1; }
+  .drawer .yr { display: flex; align-items: center; gap: 6px;
+                color: var(--muted); }
+  .drawer .yr input { flex: 1; width: auto; min-width: 0; text-align: center;
+                      font-variant-numeric: tabular-nums; }
+  .drawer input[type=search] { padding: 8px 12px; min-height: 44px;
     border: 1px solid var(--line); border-radius: 8px;
     background: var(--card); color: var(--ink); }
+  /* apply = the one way out: sticky in the thumb zone, carries the live
+     result count so filtering stays feedback-driven while blocked */
+  .drawer .apply { position: sticky; bottom: 0; width: 100%; display: block;
+                   margin-top: 18px; }
   /* selects draw their own chevron so both edges share the same padding */
   .selwrap { position: relative; display: inline-flex; }
   .selwrap::after { content: "▾"; position: absolute; right: 12px; top: 50%;
@@ -747,7 +759,8 @@ function sortHomes(rows) {
   });
 }
 
-let data = null;   // { watch, onmarket, listPrice }
+let data = null;   // { watch, onmarket, listPrice, streets }
+let lastTotal = 0; // current queue size — feeds the drawer's apply button
 
 function findHome(pid) {
   for (const town of TOWNS)
@@ -832,31 +845,43 @@ window.openFilterSheet = () => {
     `<label class="grp"><span class="lbl">${label}</span>${ctl}</label>`;
   const el = document.createElement("div");
   el.id = "filtersheet";
-  el.innerHTML = `<div class="sheet-backdrop" onclick="closeFilterSheet()"></div>
-    <div class="sheet filters" role="dialog" aria-label="Filters">
+  el.innerHTML = `<div class="drawer" role="dialog" aria-modal="true"
+      aria-label="Filters" tabindex="-1">
+      <div class="drawer-top"><span class="drawer-title">Filters</span></div>
       ${grp("Town", selTown())}${grp("Road", selRoad())}
       ${grp("Street type", selForm())}${grp("Bedrooms", selBeds())}
-      <div class="grp"><span class="lbl" id="slbl">Sort</span>${sortGrp("-s")}</div>
+      <div class="grp"><span class="lbl">Sort</span>${sortGrp("-s")}</div>
       <div class="grp"><span class="lbl">Built</span>
         <span class="yr">${yrInputs("-s")}</span></div>
       ${grp("Street name", qInput())}
-      <button class="item cancel" onclick="closeFilterSheet()">Done</button>
+      <button class="save apply" id="drawerdone" onclick="closeFilterSheet()">
+        Show ${lastTotal} home${plural(lastTotal)}</button>
     </div>`;
   document.body.appendChild(el);
   document.getElementById("filtersbtn").setAttribute("aria-expanded", "true");
-  document.addEventListener("keydown", filterSheetKey);
-  el.querySelector("select")?.focus();
+  document.addEventListener("keydown", drawerKey);
+  el.querySelector(".drawer").focus();   // container, never a control
 };
 
 window.closeFilterSheet = () => {
   document.getElementById("filtersheet")?.remove();
-  document.removeEventListener("keydown", filterSheetKey);
+  document.removeEventListener("keydown", drawerKey);
   renderShell();          // re-sync the inline copies of every control
   document.getElementById("filtersbtn")?.focus();
 };
 
-function filterSheetKey(e) {
-  if (e.key === "Escape") closeFilterSheet();
+function drawerKey(e) {
+  if (e.key === "Escape") { closeFilterSheet(); return; }
+  if (e.key !== "Tab") return;           // trap focus: it's a modal takeover
+  const f = [...document.querySelectorAll(
+    "#filtersheet select, #filtersheet input, #filtersheet button")];
+  if (!f.length) return;
+  const first = f[0], last = f[f.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    last.focus(); e.preventDefault();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    first.focus(); e.preventDefault();
+  }
 }
 
 // active-filter summary: hidden controls, visible state
@@ -959,6 +984,9 @@ function renderList() {
   document.getElementById("list").innerHTML = html;
   applyAddrFilter();
   syncFilterSummary();
+  lastTotal = total;
+  const dd = document.getElementById("drawerdone");
+  if (dd) dd.textContent = `Show ${total} home${plural(total)}`;
 }
 
 function renderGate() {
