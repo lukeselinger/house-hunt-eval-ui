@@ -8,6 +8,11 @@
 <style>
   :root {
     color-scheme: light dark;
+    /* spacing scale (ratified 2026-09-02): every padding/margin/gap uses a
+       token — a raw length in a rule is a defect. Optical exceptions of
+       1–2px allowed with a comment. */
+    --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+    --sp-5: 24px; --sp-6: 32px; --sp-7: 48px;
     --bg: #faf9f7; --card: #ffffff; --ink: #1a1a1a; --muted: #6b6b6b;
     --line: rgba(0, 0, 0, 0.08);        /* separation borders: alpha in light */
     --accent: #2f6f4f; --accent-ink: #ffffff;
@@ -49,21 +54,29 @@
   button, a, input, select, textarea { touch-action: manipulation; }
   button { font: inherit; cursor: pointer; }
   :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-  header { padding: 12px 16px; border-bottom: 1px solid var(--line);
+  /* leading roles (ratified 2026-09-02): body 1.45 is the inherited default;
+     single-line UI takes 1.2, reading text 1.5, headings 1.2 — declared
+     here so no role rides on ambient reading-leading. */
+  .seg button, .qchip, .ctl, .evalbtn, .save, .opts button, .tag, .lbl,
+  .stats dt, .stats dd, .fsummary, .drawer-title, .who-chip, .sheet .item,
+  .donetoggle { line-height: 1.2; }
+  .note, .hint, .err, .fine, textarea { line-height: 1.5; }
+  h2, .gate h1 { line-height: 1.2; }
+  header { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--line);
            position: sticky; top: 0; background: var(--bg); z-index: 5; }
-  .hdr-row { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap;
-             margin-top: 8px; }
+  .hdr-row { display: flex; gap: var(--sp-2); align-items: stretch; flex-wrap: wrap;
+             margin-top: var(--sp-2); }
   .hdr-row:first-child { margin-top: 0; }
   /* row 1 = identity + view: content-sized, never wraps, never separates */
   .hdr-row.primary { justify-content: space-between; flex-wrap: nowrap; }
   .seg { display: flex; border: 1px solid var(--line); border-radius: 8px;
          overflow: hidden; }
   .seg button { border: 0; background: var(--card); color: var(--ink);
-    padding: 0 14px; min-height: 42px; font-size: 14px;
+    padding: 0 var(--sp-3); min-height: 42px; font-size: 14px;
     transition: background-color 150ms ease-out, color 150ms ease-out; }
   .seg button + button { border-left: 1px solid var(--line); }
   .seg button.on { background: var(--accent); color: var(--accent-ink); }
-  .hdr-right { display: flex; align-items: center; gap: 4px; flex: none; }
+  .hdr-right { display: flex; align-items: center; gap: var(--sp-1); flex: none; }
   /* ghost icon button — nice-to-have weight, full 44px hit area */
   .iconbtn { border: 0; background: none; color: var(--muted);
     min-width: 44px; min-height: 44px; border-radius: 8px;
@@ -72,22 +85,25 @@
                 transform 150ms ease-out; }
   /* active-profile chip: shows who's recording; switching is behind an
      action sheet — a deliberate act, not a view toggle */
-  .who-chip { display: inline-flex; align-items: center; gap: 8px;
+  .who-chip { display: inline-flex; align-items: center; gap: var(--sp-2);
     border: 1px solid var(--line); border-radius: 22px; background: var(--card);
-    color: var(--ink); padding: 0 14px 0 6px; min-height: 44px; font-size: 14px;
+    color: var(--ink); min-height: 44px; font-size: 14px;
+    /* left 6px = --sp-2 − 2 optical: avatar inset tracks the pill's 7px
+       vertical inset */
+    padding: 0 var(--sp-3) 0 6px;
     transition: background-color 150ms ease-out, transform 150ms ease-out; }
   .ava { width: 30px; height: 30px; border-radius: 50%; background: var(--accent);
     color: var(--accent-ink); display: inline-flex; align-items: center;
     justify-content: center; font-size: 14px; flex: none; }
   .sheet-backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 0.35);
     z-index: 100; animation: fadeIn 150ms ease-out; }
-  .sheet { position: fixed; left: 50%; bottom: 16px;
-    transform: translateX(-50%); width: min(420px, calc(100% - 24px));
-    background: var(--card); border-radius: 14px; padding: 8px;
+  .sheet { position: fixed; left: 50%; bottom: var(--sp-4);
+    transform: translateX(-50%); width: min(420px, calc(100% - var(--sp-5)));
+    background: var(--card); border-radius: 14px; padding: var(--sp-2);
     box-shadow: var(--elev), 0 12px 40px -12px rgb(0 0 0 / 0.45); z-index: 101;
     animation: sheetIn 180ms ease-out; }
-  .sheet .item { display: flex; width: 100%; align-items: center; gap: 10px;
-    padding: 0 12px; min-height: 52px; border: 0; background: none;
+  .sheet .item { display: flex; width: 100%; align-items: center; gap: var(--sp-3);
+    padding: 0 var(--sp-3); min-height: 52px; border: 0; background: none;
     color: var(--ink); border-radius: 8px; font-size: 15px; text-align: left;
     transition: background-color 150ms ease-out; }
   .sheet .item .check { margin-left: auto; color: var(--accent); }
@@ -96,7 +112,7 @@
   @keyframes sheetIn { from { opacity: 0; transform: translate(-50%, 10px); } }
   select.ctl, button.ctl, input.ctl { border: 1px solid var(--line);
     border-radius: 8px; background: var(--card); color: var(--ink);
-    min-height: 44px; padding: 0 12px; }
+    min-height: 44px; padding: 0 var(--sp-3); }
   button.ctl { transition: background-color 150ms ease-out,
                transform 150ms ease-out; }
   /* one control type size: 14px. Exception: on touch devices, FIELDS
@@ -117,7 +133,7 @@
      matches the seg (bg + ink only, weight never changes) */
   .qchip { border: 1px solid var(--line); background: var(--card);
     color: var(--ink); border-radius: 8px; min-height: 44px;
-    padding: 0 14px; font-size: 14px; flex: none;
+    padding: 0 var(--sp-3); font-size: 14px; flex: none;
     transition: background-color 150ms ease-out, color 150ms ease-out,
                 border-color 150ms ease-out, transform 150ms ease-out; }
   .qchip.on { background: var(--accent); color: var(--accent-ink);
@@ -128,7 +144,7 @@
      CONTAINER takes focus on open, never a control — focusing a select on
      touch expands its picker, which reads as premature intent. */
   .drawer { position: fixed; inset: 0; z-index: 101; background: var(--bg);
-    padding: 0 16px max(16px, env(safe-area-inset-bottom));
+    padding: 0 var(--sp-4) max(var(--sp-4), env(safe-area-inset-bottom));
     overflow-y: auto; outline: none; animation: drawerIn 200ms ease-out; }
   @keyframes drawerIn { from { opacity: 0; transform: translateY(20px); } }
   .drawer-top { display: flex; align-items: center; min-height: 52px; }
@@ -138,63 +154,71 @@
   .drawer select.ctl, .drawer input[type=search] { width: 100%; }
   .drawer .sortgrp { display: flex; }
   .drawer .sortgrp .selwrap { flex: 1; }
-  .drawer .yr { display: flex; align-items: center; gap: 6px;
+  .drawer .yr { display: flex; align-items: center; gap: var(--sp-2);
                 color: var(--muted); }
   .drawer .yr input { flex: 1; width: auto; min-width: 0; text-align: center;
                       font-variant-numeric: tabular-nums; }
-  .drawer input[type=search] { padding: 8px 12px; min-height: 44px;
+  .drawer input[type=search] { padding: var(--sp-2) var(--sp-3); min-height: 44px;
     border: 1px solid var(--line); border-radius: 8px;
     background: var(--card); color: var(--ink); }
   /* apply = the one way out: sticky in the thumb zone, carries the live
      result count so filtering stays feedback-driven while blocked */
   .drawer .apply { position: sticky; bottom: 0; width: 100%; display: block;
-                   margin-top: 18px; }
+                   margin-top: var(--sp-4); }
   /* the takeover spans wider viewports too (drawer shows below 1060px) —
      cap the content column so controls don't stretch absurdly */
   .drawer .drawer-top, .drawer .grp, .drawer .apply {
     max-width: 520px; margin-left: auto; margin-right: auto; }
   /* selects draw their own chevron so both edges share the same padding */
   .selwrap { position: relative; display: inline-flex; }
-  .selwrap::after { content: "▾"; position: absolute; right: 12px; top: 50%;
+  .selwrap::after { content: "▾"; position: absolute; right: var(--sp-3); top: 50%;
     transform: translateY(-50%); pointer-events: none; color: var(--muted);
     font-size: 11px; }
   select.ctl { appearance: none; -webkit-appearance: none;
-               padding: 0 28px 0 12px; }
+               /* right = --sp-3 chevron inset + --sp-4 clearance */
+               padding: 0 calc(var(--sp-3) + var(--sp-4)) 0 var(--sp-3); }
   /* sort attribute + direction read as one control */
   .sortgrp { display: inline-flex; border: 1px solid var(--line);
              border-radius: 8px; overflow: hidden; background: var(--card); }
   .sortgrp .ctl { border: 0; border-radius: 0; min-height: 42px; }
   .sortgrp .dir { border-left: 1px solid var(--line); min-width: 44px;
                   text-align: center; }
-  .yr input { width: 60px; text-align: center; padding: 0 6px;
+  .yr input { width: 60px; text-align: center; padding: 0 var(--sp-1);
               font-variant-numeric: tabular-nums; }
-  main { max-width: 720px; margin: 0 auto; padding: 10px 12px 60px; }
-  h2 { font-size: 15px; margin: 18px 4px 8px; color: var(--muted);
+  main { max-width: 720px; margin: 0 auto;
+         padding: var(--sp-3) var(--sp-3) var(--sp-7); }
+  h2 { font-size: 15px; margin: var(--sp-4) var(--sp-1) var(--sp-2);
+       color: var(--muted);
        font-weight: 600; font-variant-numeric: tabular-nums; }
   h2 .prov { font-size: 12px; font-weight: 400; }
-  .note { color: var(--muted); font-size: 13px; margin: 8px 4px; }
+  .note { color: var(--muted); font-size: 13px; margin: var(--sp-2) var(--sp-1); }
   .card { background: var(--card); border-radius: 10px; box-shadow: var(--elev);
-          padding: 12px 14px; margin-bottom: 10px; }
+          padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-3); }
   .addr { font-weight: 650; font-size: 15px; }
-  .qual { color: var(--muted); font-size: 13px; margin-top: 1px; }
+  .qual { color: var(--muted); font-size: 13px;
+          margin-top: 1px; /* optical: tucks qualifier under the address */ }
   /* the decision figure leads; context is fine print below the stat grid */
-  .pricerow { display: flex; align-items: baseline; gap: 8px; margin-top: 8px;
+  .pricerow { display: flex; align-items: baseline; gap: var(--sp-2);
+              margin-top: var(--sp-2);
               color: var(--muted); font-size: 13px;
               font-variant-numeric: tabular-nums; }
   .pricerow .amt { font-size: 17px; font-weight: 650; color: var(--ink);
                    letter-spacing: -0.01em; }
   /* comparable attributes in fixed columns — same template every card, so
      one column scans vertically across cards */
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0 12px;
-           margin: 10px 0 0; max-width: 420px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr);
+           gap: 0 var(--sp-3); margin: var(--sp-2) 0 0; max-width: 420px; }
   .stats div { min-width: 0; }
   .stats dt { font-size: 12px; text-transform: uppercase;
               letter-spacing: 0.05em; color: var(--muted); }
   .stats dd { margin: 0; font-size: 15px; font-variant-numeric: tabular-nums;
               white-space: nowrap; }
-  .fine { color: var(--muted); font-size: 12px; margin-top: 8px;
+  .fine { color: var(--muted); font-size: 12px; margin-top: var(--sp-2);
           font-variant-numeric: tabular-nums; }
-  .tag { display: inline-block; font-size: 12px; padding: 1px 7px;
+  .tag { display: inline-block; font-size: 12px;
+         /* 7px = --sp-2 − 1, 1px vertical + align: optical cap centering
+            beside 15px addresses */
+         padding: 1px 7px;
          border-radius: 10px; background: var(--chip); color: var(--muted);
          letter-spacing: 0.03em; vertical-align: 1px; }
   .tag.in { color: var(--accent); font-weight: 600; }
@@ -202,29 +226,34 @@
   .tag.done { color: var(--accent); }
   .tag.road { color: var(--warn); font-weight: 600; }
   .row2 { display: flex; justify-content: space-between; align-items: center;
-          margin-top: 8px; gap: 8px; }
+          margin-top: var(--sp-2); gap: var(--sp-2); }
   .links { display: flex; }
   .links a { color: var(--accent); text-decoration: none; font-size: 14px;
              display: inline-flex; align-items: center; min-height: 44px;
-             padding: 0 10px; margin: -10px 0; }
-  .links a:first-child { margin-left: -10px; }
+             padding: 0 var(--sp-2); }
+  /* hit-area compensation, not a spacing nudge: first link's text stays
+     flush with the card's content edge */
+  .links a:first-child { margin-left: calc(-1 * var(--sp-2)); }
   .evalbtn { border: 0; background: var(--chip); color: var(--ink);
-             border-radius: 8px; padding: 0 16px; min-height: 44px;
+             border-radius: 8px; padding: 0 var(--sp-4); min-height: 44px;
              font-size: 13px; box-shadow: 0 0 0 1px var(--line);
              transition: background-color 150ms ease-out, transform 150ms ease-out; }
   .donetoggle { border: 0; background: none; color: var(--muted);
-    font-size: 13px; padding: 8px 4px; min-height: 44px;
+    font-size: 13px; padding: var(--sp-2) var(--sp-1); min-height: 44px;
     transition: color 150ms ease-out; }
-  form { border-top: 1px dashed var(--line); margin-top: 12px; padding-top: 12px; }
-  .grp { margin-bottom: 12px; }
+  form { border-top: 1px dashed var(--line); margin-top: var(--sp-3);
+         padding-top: var(--sp-3); }
+  /* block: some grps are <label>s (inline by default), which silently
+     ignored the drawer's 520px column cap */
+  .grp { display: block; margin-bottom: var(--sp-3); }
   .grp .lbl { display: block; font-size: 12px; color: var(--muted);
-              margin-bottom: 6px; text-transform: uppercase;
+              margin-bottom: var(--sp-1); text-transform: uppercase;
               letter-spacing: 0.06em; }
   .grp .hint { display: block; font-size: 12px; color: var(--muted);
-               margin: -4px 0 6px; }
-  .opts { display: flex; flex-wrap: wrap; gap: 6px; }
+               margin: 0 0 var(--sp-2); }
+  .opts { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
   .opts button { border: 1px solid var(--line); background: var(--card);
-    color: var(--ink); border-radius: 8px; padding: 0 12px; min-height: 44px;
+    color: var(--ink); border-radius: 8px; padding: 0 var(--sp-3); min-height: 44px;
     font-size: 13px; position: relative;
     transition: background-color 150ms ease-out, border-color 150ms ease-out,
                 color 150ms ease-out, transform 150ms ease-out; }
@@ -234,29 +263,32 @@
   .opts button.fail { background: var(--listed); color: var(--listed-ink);
                       border-color: var(--listed); }
   .opts button .ord { position: absolute; top: -6px; right: -5px;
+    /* offsets are badge-overhang positioning, not sibling spacing */
     background: var(--warn); color: var(--warn-ink); border-radius: 8px;
-    font-size: 11px; padding: 0 4px; font-variant-numeric: tabular-nums;
+    font-size: 11px; padding: 0 var(--sp-1); font-variant-numeric: tabular-nums;
     pointer-events: none; }
   .glyph { display: inline-block; width: 15px; text-align: right; }
-  textarea { width: 100%; min-height: 72px; padding: 10px 12px;
+  textarea { width: 100%; min-height: 72px; padding: var(--sp-2) var(--sp-3);
     border-radius: 8px; border: 1px solid var(--line); background: var(--bg);
-    color: var(--ink); font: inherit; font-size: 16px; line-height: 1.4; }
+    color: var(--ink); font: inherit; font-size: 16px; }
   .save { background: var(--accent); color: var(--accent-ink); border: 0;
-          border-radius: 8px; padding: 0 20px; min-height: 44px;
+          border-radius: 8px; padding: 0 var(--sp-5); min-height: 44px;
           font-size: 14px; font-weight: 600;
           transition: background-color 150ms ease-out, transform 150ms ease-out; }
   .save:disabled { cursor: default; }
-  .err { color: var(--listed); font-size: 13px; margin-top: 8px;
+  .err { color: var(--listed); font-size: 13px; margin-top: var(--sp-2);
          white-space: pre-wrap; }
-  .setup { max-width: 460px; margin: 60px auto; padding: 0 16px; }
-  .setup input { width: 100%; padding: 10px 12px; border: 1px solid var(--line);
+  .setup { max-width: 460px; margin: var(--sp-7) auto; padding: 0 var(--sp-4); }
+  .setup input { width: 100%; padding: var(--sp-2) var(--sp-3);
+    border: 1px solid var(--line);
     border-radius: 8px; background: var(--card); color: var(--ink);
-    margin: 10px 0; font-size: 16px; min-height: 44px; }
-  .gate { max-width: 420px; margin: 18vh auto 0; padding: 0 16px;
+    margin: var(--sp-3) 0; font-size: 16px; min-height: 44px; }
+  .gate { max-width: 420px; margin: 18vh auto 0; padding: 0 var(--sp-4);
           text-align: center; }
-  .gate h1 { font-size: 22px; margin-bottom: 24px; }
-  .gate button { display: block; width: 100%; margin: 12px 0; min-height: 64px;
-    font-size: 18px; font-weight: 600; border: 0; border-radius: 12px;
+  .gate h1 { font-size: 22px; margin-bottom: var(--sp-5); }
+  .gate button { display: block; width: 100%; margin: var(--sp-3) 0;
+    min-height: 64px;
+    font-size: 18px; font-weight: 600; border: 0; border-radius: 10px;
     background: var(--card); color: var(--ink); box-shadow: var(--elev);
     transition: background-color 150ms ease-out, transform 150ms ease-out; }
   @media (hover: hover) and (pointer: fine) {
@@ -280,6 +312,7 @@
   /* very narrow: chip collapses to the avatar; row 1 still never wraps */
   @media (max-width: 430px) {
     .who-chip .name { display: none; }
+    /* 6px = --sp-2 − 2 optical: even inset around the bare avatar */
     .who-chip { padding: 0 6px; }
   }
   button:not(:disabled):active { transform: scale(0.96); }
@@ -653,7 +686,7 @@ window.openWhoSheet = () => {
   el.id = "whosheet";
   el.innerHTML = `<div class="sheet-backdrop" onclick="closeWhoSheet()"></div>
     <div class="sheet" role="menu" aria-label="Switch who's evaluating">
-      <p class="note" style="margin:6px 12px 8px">Who's evaluating? Queues and
+      <p class="note" style="margin:var(--sp-2) var(--sp-3)">Who's evaluating? Queues and
         saved verdicts follow the name.</p>
       ${["Luke", "Michelle"].map(w =>
         `<button class="item" role="menuitemradio" aria-checked="${w === who}"
@@ -1026,7 +1059,7 @@ function renderSetup() {
 async function main() {
   if (!DEMO && !anonKey()) { renderSetup(); return; }
   if (!who) { renderGate(); return; }
-  $app.innerHTML = `<p class="note" style="margin:40px 16px">Loading…</p>`;
+  $app.innerHTML = `<p class="note" style="margin:var(--sp-6) var(--sp-4)">Loading…</p>`;
   try {
     data = DEMO ? demoData() : await loadAll();
     renderShell();
