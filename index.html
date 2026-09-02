@@ -111,14 +111,17 @@
   @media (pointer: coarse) {
     header input, header select { font-size: 16px; }
   }
-  /* mobile filter disclosure: below 640px the inline filter set collapses
-     to a Filters button + active-filter summary; controls move into the
-     bottom sheet. Hidden controls, visible state (DESIGN.md 2026-09-01). */
+  /* filter disclosure: the inline row renders ONLY where it provably fits
+     on ONE line (measured min 1,013px on live data + headroom -> 1060px
+     breakpoint; re-measure if a control is added). Below that: Filters
+     button + active-filter summary, controls in the drawer. Never a
+     mid-tier "some filters inline" — controls must not relocate by width
+     (DESIGN.md, stress-tested 2026-09-02). */
   .filters-inline { display: contents; }
   .filterbar { display: none; align-items: center; gap: 10px; min-width: 0; }
   .fsummary { color: var(--muted); font-size: 13px; white-space: nowrap;
               overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  @media (max-width: 639px) {
+  @media (max-width: 1059px) {
     .filters-inline { display: none; }
     .filterbar { display: flex; flex: 1; }
   }
@@ -149,6 +152,10 @@
      result count so filtering stays feedback-driven while blocked */
   .drawer .apply { position: sticky; bottom: 0; width: 100%; display: block;
                    margin-top: 18px; }
+  /* the takeover spans wider viewports too (drawer shows below 1060px) —
+     cap the content column so controls don't stretch absurdly */
+  .drawer .drawer-top, .drawer .grp, .drawer .apply {
+    max-width: 520px; margin-left: auto; margin-right: auto; }
   /* selects draw their own chevron so both edges share the same padding */
   .selwrap { position: relative; display: inline-flex; }
   .selwrap::after { content: "▾"; position: absolute; right: 12px; top: 50%;
