@@ -56,12 +56,6 @@
   .hdr-row:first-child { margin-top: 0; }
   /* row 1 = identity + view: content-sized, never wraps, never separates */
   .hdr-row.primary { justify-content: space-between; flex-wrap: nowrap; }
-  /* street filter is a nice-to-have: it takes leftover row space, capped —
-     never a whole row of its own */
-  .hdr-row input[type=search] { flex: 1 1 110px; min-width: 110px;
-    max-width: 190px; padding: 8px 12px;
-    border: 1px solid var(--line); border-radius: 8px; background: var(--card);
-    color: var(--ink); min-height: 44px; }
   .seg { display: flex; border: 1px solid var(--line); border-radius: 8px;
          overflow: hidden; }
   .seg button { border: 0; background: var(--card); color: var(--ink);
@@ -111,20 +105,23 @@
   @media (pointer: coarse) {
     header input, header select { font-size: 16px; }
   }
-  /* filter disclosure: the inline row renders ONLY where it provably fits
-     on ONE line (measured min 1,013px on live data + headroom -> 1060px
-     breakpoint; re-measure if a control is added). Below that: Filters
-     button + active-filter summary, controls in the drawer. Never a
-     mid-tier "some filters inline" — controls must not relocate by width
-     (DESIGN.md, stress-tested 2026-09-02). */
-  .filters-inline { display: contents; }
-  .filterbar { display: none; align-items: center; gap: 10px; min-width: 0; }
+  /* THE filter bar — identical at every width (Redfin/Airbnb reference
+     study, 2026-09-02): Filters button carrying a UNIFIED active count +
+     a fixed persistent set (town select, "4+ beds" chip; Luke-ratified,
+     must fit 375px on ONE line) + ellipsizing summary of drawer-only
+     actives. Never wraps; never a width-dependent subset. */
   .fsummary { color: var(--muted); font-size: 13px; white-space: nowrap;
-              overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  @media (max-width: 1059px) {
-    .filters-inline { display: none; }
-    .filterbar { display: flex; flex: 1; }
-  }
+              overflow: hidden; text-overflow: ellipsis; min-width: 0;
+              flex: 1; }
+  /* quick-filter chip: one-tap boolean, value in its label; active state
+     matches the seg (bg + ink only, weight never changes) */
+  .qchip { border: 1px solid var(--line); background: var(--card);
+    color: var(--ink); border-radius: 8px; min-height: 44px;
+    padding: 0 14px; font-size: 14px; flex: none;
+    transition: background-color 150ms ease-out, color 150ms ease-out,
+                border-color 150ms ease-out, transform 150ms ease-out; }
+  .qchip.on { background: var(--accent); color: var(--accent-ink);
+              border-color: var(--accent); }
   /* filter drawer: full-viewport blocking takeover (2026-09-02) — opaque,
      nothing behind it is tappable, so a stray tap can neither dismiss it
      nor hit the page. Closes only via the apply button or Escape. The
@@ -169,8 +166,6 @@
   .sortgrp .ctl { border: 0; border-radius: 0; min-height: 42px; }
   .sortgrp .dir { border-left: 1px solid var(--line); min-width: 44px;
                   text-align: center; }
-  .ctl-lbl { display: flex; align-items: center; gap: 6px;
-             color: var(--muted); font-size: 13px; }
   .yr input { width: 60px; text-align: center; padding: 0 6px;
               font-variant-numeric: tabular-nums; }
   main { max-width: 720px; margin: 0 auto; padding: 10px 12px 60px; }
@@ -266,12 +261,13 @@
     transition: background-color 150ms ease-out, transform 150ms ease-out; }
   @media (hover: hover) and (pointer: fine) {
     .seg button:not(.on):hover, .evalbtn:hover, button.ctl:hover,
+    .qchip:not(.on):hover,
     .gate button:hover, .who-chip:hover, .sheet .item:hover { background: var(--chip); }
     .iconbtn:hover { background: var(--chip); color: var(--ink); }
     .opts button:not(.on):not(.fail):hover {
       background: color-mix(in oklch, var(--card) 92%, var(--ink)); }
     .save:not(:disabled):hover,
-    .opts button.on:hover, .seg button.on:hover {
+    .opts button.on:hover, .seg button.on:hover, .qchip.on:hover {
       background: color-mix(in oklch, var(--accent) 88%, black); }
     .links a:hover { text-decoration: underline; }
     .donetoggle:hover { color: var(--ink); }
@@ -699,6 +695,10 @@ window.setMode = m => {
 window.setTown = t => { view.town = t; renderList(); };
 window.setRoad = r => { view.road = r; renderList(); };
 window.setBeds = b => { view.beds = b === "any" ? null : +b; renderList(); };
+window.toggleBedsChip = () => {
+  view.beds = view.beds === 4 ? null : 4;
+  renderList();          // chip + badge re-sync via syncFilterSummary
+};
 window.setForm = f => { view.form = f; renderList(); };
 window.setSort = s => { view.sort = s; renderList(); };
 window.flipDir = () => {
@@ -891,21 +891,35 @@ function drawerKey(e) {
   }
 }
 
-// active-filter summary: hidden controls, visible state
+// bar state sync. Badge = UNIFIED count of ALL active filters, wherever
+// they were set (the Redfin behavior). Summary lists only drawer-only
+// actives — the persistent controls self-display town and 4+ beds.
 function syncFilterSummary() {
+  let active = 0;
   const parts = [];
-  if (view.town !== "All") parts.push(view.town);
-  if (view.road !== "any")
-    parts.push(view.road === "res" ? "residential" : "main road");
-  if (view.form !== "any") parts.push(formLabel(view.form));
-  if (view.beds !== null) parts.push(`${view.beds}+ beds`);
-  if (view.yrMin !== null || view.yrMax !== null)
-    parts.push(`built ${view.yrMin ?? ""}–${view.yrMax ?? ""}`);
-  if (view.q) parts.push(`“${view.q}”`);
+  const count = (cond, label) => {
+    if (!cond) return;
+    active++;
+    if (label) parts.push(label);
+  };
+  count(view.town !== "All", null);              // shown by the town select
+  count(view.beds === 4, null);                  // shown by the 4+ beds chip
+  count(view.beds !== null && view.beds !== 4, `${view.beds}+ beds`);
+  count(view.road !== "any",
+        view.road === "res" ? "residential" : "main road");
+  count(view.form !== "any", formLabel(view.form));
+  count(view.yrMin !== null || view.yrMax !== null,
+        `built ${view.yrMin ?? ""}–${view.yrMax ?? ""}`);
+  count(!!view.q, `“${view.q}”`);
   const btn = document.getElementById("filtersbtn");
-  if (btn) btn.textContent = "Filters" + (parts.length ? ` · ${parts.length}` : "");
+  if (btn) btn.textContent = "Filters" + (active ? ` · ${active}` : "");
   const sum = document.getElementById("fsummary");
   if (sum) sum.textContent = parts.join(" · ");
+  const chip = document.getElementById("bedschip");
+  if (chip) {
+    chip.classList.toggle("on", view.beds === 4);
+    chip.setAttribute("aria-pressed", String(view.beds === 4));
+  }
 }
 
 function renderShell() {
@@ -928,17 +942,12 @@ function renderShell() {
       </span>
     </div>
     <div class="hdr-row">
-      <span class="filters-inline">
-        ${selTown()} ${selRoad()} ${selForm()} ${selBeds()}
-        <span class="ctl-lbl"><label for="sortsel">Sort</label>${sortGrp("")}</span>
-        <span class="ctl-lbl yr"><label for="yrmin">Built</label>${yrInputs("")}</span>
-        ${qInput()}
-      </span>
-      <span class="filterbar">
-        <button class="ctl" id="filtersbtn" aria-haspopup="dialog"
-          aria-expanded="false" onclick="openFilterSheet()">Filters</button>
-        <span class="fsummary" id="fsummary" aria-live="polite"></span>
-      </span>
+      <button class="ctl" id="filtersbtn" aria-haspopup="dialog"
+        aria-expanded="false" onclick="openFilterSheet()">Filters</button>
+      ${selTown()}
+      <button class="qchip ${view.beds === 4 ? "on" : ""}" id="bedschip"
+        aria-pressed="${view.beds === 4}" onclick="toggleBedsChip()">4+ beds</button>
+      <span class="fsummary" id="fsummary" aria-live="polite"></span>
     </div></header><main id="list"></main>`;
   syncThemeBtn();
   renderList();
