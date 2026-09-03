@@ -34,6 +34,8 @@
     --listed: #b3261e; --listed-ink: #ffffff;
     --elev: 0 0 0 1px rgb(0 0 0 / 0.05), 0 1px 3px rgb(0 0 0 / 0.05),
             0 4px 10px -4px rgb(0 0 0 / 0.05);
+    /* the app's one custom curve — exits only (DESIGN.md §Interaction) */
+    --ease-exit: cubic-bezier(0.19, 1, 0.22, 1);
   }
   /* theme: data-theme on <html> overrides the system preference (set before
      first paint from localStorage). The two dark blocks below must stay
@@ -659,6 +661,42 @@ window.pickAxis = (pid, a, btn) => {
   }
 };
 
+// save-card exit (brief 2026-09-03): the judged card visibly leaves the
+// queue — recede in place 150ms, then its gap closes 300ms so the next
+// card slides up; renderList() lands invisibly after. Exit rules per
+// DESIGN.md: never blocks input; hard fallback timer (a display:none'd
+// card or backgrounded tab never fires transitionend); reduced motion
+// skips straight to the end state.
+function exitCard(card) {
+  let done = false;
+  const finish = () => { if (!done) { done = true; renderList(); } };
+  if (!card || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    finish(); return;
+  }
+  card.style.transition =
+    "opacity 150ms var(--ease-exit), transform 150ms var(--ease-exit)";
+  card.style.opacity = "0";
+  card.style.transform = "scale(0.98)";
+  setTimeout(() => {
+    card.style.height = card.offsetHeight + "px";  // pin, then collapse
+    card.style.overflow = "hidden";
+    void card.offsetHeight;   // flush: the pin must be the computed 'from'
+    card.style.transition = "height 300ms var(--ease-exit)," +
+      " margin-bottom 300ms var(--ease-exit)," +
+      " padding-top 300ms var(--ease-exit), padding-bottom 300ms var(--ease-exit)";
+    card.style.height = "0";
+    card.style.marginBottom = "0";
+    card.style.paddingTop = "0";
+    card.style.paddingBottom = "0";
+    // phase-1's opacity/transform end right around now — only the height
+    // transition may finish the exit
+    card.addEventListener("transitionend", e => {
+      if (e.target === card && e.propertyName === "height") finish();
+    });
+  }, 150);
+  setTimeout(finish, 600);
+}
+
 window.saveEval = (ev, pid, mode) => {
   ev.preventDefault();
   const form = ev.target, st = formState[pid];
@@ -679,7 +717,7 @@ window.saveEval = (ev, pid, mode) => {
             nominated_by: who, verbatim_reasoning: text || null },
   }).then(() => {
     recordSave(pid, st.verdict, who);
-    renderList();
+    exitCard(form.closest(".card"));
   }).catch(e => {
     err.textContent = "Save failed: " + String(e.message).slice(0, 200);
     save.disabled = false;
