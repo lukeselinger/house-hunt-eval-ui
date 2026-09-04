@@ -210,16 +210,20 @@
                   text-align: center; }
   .yr input { width: 60px; text-align: center; padding: 0 var(--sp-1);
               font-variant-numeric: tabular-nums; }
+  /* the list owns its rhythm (Q7, 2026-09-04): gap on the container, not
+     margins on cards. Flex gaps don't collapse, so h2/note margins shrink
+     to their on-scale compensations (section lead-in = gap + --sp-1). */
   main { max-width: 720px; margin: 0 auto;
-         padding: var(--sp-3) var(--sp-3) var(--sp-7); }
-  h2 { font-size: var(--fs-body); margin: var(--sp-4) var(--sp-1) var(--sp-2);
+         padding: var(--sp-3) var(--sp-3) var(--sp-7);
+         display: flex; flex-direction: column; gap: var(--sp-3); }
+  h2 { font-size: var(--fs-body); margin: var(--sp-1) var(--sp-1) 0;
        color: var(--muted);
        font-weight: 600; font-variant-numeric: tabular-nums; }
   h2 .prov { font-size: var(--fs-label); font-weight: 400; }
   .note { color: var(--muted); font-size: var(--fs-meta);
-          margin: var(--sp-2) var(--sp-1); }
+          margin: 0 var(--sp-1); }
   .card { background: var(--card); border-radius: 10px; box-shadow: var(--elev);
-          padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-3); }
+          padding: var(--sp-3) var(--sp-4); }
   .addr { font-weight: 650; font-size: var(--fs-body); }
   .qual { color: var(--muted); font-size: var(--fs-meta);
           margin-top: 1px; /* optical: tucks qualifier under the address */ }
@@ -714,6 +718,9 @@ window.pickAxis = (pid, a, btn) => {
 // ONE gesture — the card fades/recedes (150ms) while its gap closes
 // (300ms), all from t=0 on the same curve; renderList() lands invisibly
 // after. Sequential phases read as two events with a flash between them.
+// Since the list spaces via flex gap (Q7), the dying card animates
+// margin-bottom to -1 gap to consume its own slot — a transient animation
+// value, not a layout nudge — so the queue closes exactly flush.
 // Exit rules per DESIGN.md: never blocks input; hard fallback timer (a
 // display:none'd card or backgrounded tab never fires transitionend);
 // reduced motion skips straight to the end state.
@@ -733,7 +740,7 @@ function exitCard(card) {
   card.style.opacity = "0";
   card.style.transform = "scale(0.98)";
   card.style.height = "0";
-  card.style.marginBottom = "0";
+  card.style.marginBottom = "calc(-1 * var(--sp-3))";   // eat this slot's gap
   card.style.paddingTop = "0";
   card.style.paddingBottom = "0";
   // only the longest transition (height) may finish the exit
