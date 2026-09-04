@@ -259,10 +259,10 @@
   .links a:first-child { margin-left: calc(-1 * var(--sp-2)); }
   .evalbtn { border: 0; background: var(--chip); color: var(--ink);
              border-radius: 8px; padding: 0 var(--sp-4); min-height: 44px;
-             font-size: var(--fs-meta); box-shadow: 0 0 0 1px var(--line);
+             font-size: var(--fs-ctl); box-shadow: 0 0 0 1px var(--line);
              transition: background-color 150ms ease-out, transform 150ms ease-out; }
   .donetoggle { border: 0; background: none; color: var(--muted);
-    font-size: var(--fs-meta); padding: var(--sp-2) var(--sp-1); min-height: 44px;
+    font-size: var(--fs-ctl); padding: var(--sp-2) var(--sp-1); min-height: 44px;
     transition: color 150ms ease-out; }
   form { border-top: 1px dashed var(--line); margin-top: var(--sp-3);
          padding-top: var(--sp-3); }
@@ -277,7 +277,7 @@
   .opts { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
   .opts button { border: 1px solid var(--line); background: var(--card);
     color: var(--ink); border-radius: 8px; padding: 0 var(--sp-3); min-height: 44px;
-    font-size: var(--fs-meta); position: relative;
+    font-size: var(--fs-ctl); position: relative;  /* control floor: never meta */
     transition: background-color 150ms ease-out, border-color 150ms ease-out,
                 color 150ms ease-out, transform 150ms ease-out; }
   /* state signaled by bg+ink only — a weight change would reflow the row.
