@@ -681,7 +681,10 @@ function exitCard(card) {
     card.style.height = card.offsetHeight + "px";  // pin, then collapse
     card.style.overflow = "hidden";
     void card.offsetHeight;   // flush: the pin must be the computed 'from'
-    card.style.transition = "height 300ms var(--ease-exit)," +
+    // keep phase-1's properties listed: this timer can beat their true end
+    // by a style-recalc's worth of ms, and dropping them would snap opacity
+    card.style.transition = "opacity 150ms var(--ease-exit)," +
+      " transform 150ms var(--ease-exit), height 300ms var(--ease-exit)," +
       " margin-bottom 300ms var(--ease-exit)," +
       " padding-top 300ms var(--ease-exit), padding-bottom 300ms var(--ease-exit)";
     card.style.height = "0";
