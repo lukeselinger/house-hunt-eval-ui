@@ -457,6 +457,19 @@ async function api(path, params, opts = {}) {
   return opts.raw ? r : r.json();
 }
 
+// errors render as human sentences (voice principles 2026-09-04): what
+// happened + what to do next; if entered work survives, say so; the HTTP
+// status rides in parens as a breadcrumb; raw response bodies never render.
+function friendlyError(e, { retry, keepsWork } = {}) {
+  const kept = keepsWork ? " Nothing you entered is lost." : "";
+  if (e instanceof TypeError)
+    return `Couldn't reach the database — check your connection and ${retry}.${kept}`;
+  const code = String(e.message || "").match(/^(\d{3})/)?.[1];
+  if (code === "401" || code === "403")
+    return `The database refused the app's access key — reload the page; if it keeps happening the key needs re-entering (${code}).`;
+  return `That didn't go through — try again in a moment${code ? ` (${code})` : ""}.${kept}`;
+}
+
 // address -> street name (mirrors the street_metrics view's extraction)
 const streetOf = a =>
   a.replace(/\s*\(UNIT[^)]*\)$/, "").replace(/^[\d-]+[A-Z]?\s+/, "");
@@ -578,7 +591,7 @@ function homeCard(p, town, inCut, mode, listPrice) {
   const priceRow = mode === "on"
     ? `<span class="amt">${listPrice ? "$" + listPrice.toLocaleString() : "price TBD"}</span> list`
     : `<span class="amt">$${p.price_estimate.toLocaleString()}</span> est
-       <span class="tag ${tier}">${tier}</span>`;
+       <span class="tag ${tier}">${tier === "in" ? "in budget" : "borderline"}</span>`;
   const fine = mode === "on"
     ? `Est $${(p.price_estimate || 0).toLocaleString()} ·
        assessed $${p.assessed_value.toLocaleString()}${sold}`
@@ -759,7 +772,7 @@ window.saveEval = (ev, pid, mode) => {
     exitCard(card);
   }).catch(e => {
     card.style.opacity = "";        // ease back — the card isn't going anywhere
-    err.textContent = "Save failed: " + String(e.message).slice(0, 200);
+    err.textContent = friendlyError(e, { retry: "tap Save again", keepsWork: true });
     save.disabled = false;
     save.textContent = `Save as ${who}`;
   });
@@ -1124,7 +1137,8 @@ function renderList() {
   html += `<p class="note" id="nomatch" hidden>No homes match this filter.</p>`;
   html += `<p class="note">Queues are per person — homes you evaluate leave your
     queue and stay in the other. Ceiling $${CEILING.toLocaleString()} ·
-    est = assessed × R · MAIN RD per MassDOT (peak daily traffic) ·
+    est = assessed × R · in budget / borderline = under the ceiling at the
+    conservative / median R · MAIN RD per MassDOT (peak daily traffic) ·
     FAR = living sqft ÷ lot sqft; SMALL LOT (&lt; 0.30 ac) and HIGH BULK
     (street median FAR ≥ ${HIGH_BULK_FAR}) are informative tags —
     prompts to look closer on Street View, never filters.</p>`;
@@ -1162,7 +1176,7 @@ async function main() {
     data = DEMO ? demoData() : await loadAll();
     renderShell();
   } catch (e) {
-    $app.innerHTML = `<div class="setup"><p class="err">Load failed: ${esc(e.message)}</p>
+    $app.innerHTML = `<div class="setup"><p class="err">${esc(friendlyError(e, { retry: "reload" }))}</p>
       <button class="save" onclick="localStorage.removeItem('hh_anon_key');
         location.reload()">Re-enter key</button></div>`;
   }
