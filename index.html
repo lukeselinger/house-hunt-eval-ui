@@ -661,43 +661,37 @@ window.pickAxis = (pid, a, btn) => {
   }
 };
 
-// save-card exit (brief 2026-09-03): the judged card visibly leaves the
-// queue — recede in place 150ms, then its gap closes 300ms so the next
-// card slides up; renderList() lands invisibly after. Exit rules per
-// DESIGN.md: never blocks input; hard fallback timer (a display:none'd
-// card or backgrounded tab never fires transitionend); reduced motion
-// skips straight to the end state.
+// save-card exit (brief 2026-09-03, unified per Luke's live feel check):
+// ONE gesture — the card fades/recedes (150ms) while its gap closes
+// (300ms), all from t=0 on the same curve; renderList() lands invisibly
+// after. Sequential phases read as two events with a flash between them.
+// Exit rules per DESIGN.md: never blocks input; hard fallback timer (a
+// display:none'd card or backgrounded tab never fires transitionend);
+// reduced motion skips straight to the end state.
 function exitCard(card) {
   let done = false;
   const finish = () => { if (!done) { done = true; renderList(); } };
   if (!card || matchMedia("(prefers-reduced-motion: reduce)").matches) {
     finish(); return;
   }
-  card.style.transition =
-    "opacity 150ms var(--ease-exit), transform 150ms var(--ease-exit)";
+  card.style.height = card.offsetHeight + "px";  // pin, then collapse
+  card.style.overflow = "hidden";
+  void card.offsetHeight;   // flush: the pin must be the computed 'from'
+  card.style.transition = "opacity 150ms var(--ease-exit)," +
+    " transform 150ms var(--ease-exit), height 300ms var(--ease-exit)," +
+    " margin-bottom 300ms var(--ease-exit)," +
+    " padding-top 300ms var(--ease-exit), padding-bottom 300ms var(--ease-exit)";
   card.style.opacity = "0";
   card.style.transform = "scale(0.98)";
-  setTimeout(() => {
-    card.style.height = card.offsetHeight + "px";  // pin, then collapse
-    card.style.overflow = "hidden";
-    void card.offsetHeight;   // flush: the pin must be the computed 'from'
-    // keep phase-1's properties listed: this timer can beat their true end
-    // by a style-recalc's worth of ms, and dropping them would snap opacity
-    card.style.transition = "opacity 150ms var(--ease-exit)," +
-      " transform 150ms var(--ease-exit), height 300ms var(--ease-exit)," +
-      " margin-bottom 300ms var(--ease-exit)," +
-      " padding-top 300ms var(--ease-exit), padding-bottom 300ms var(--ease-exit)";
-    card.style.height = "0";
-    card.style.marginBottom = "0";
-    card.style.paddingTop = "0";
-    card.style.paddingBottom = "0";
-    // phase-1's opacity/transform end right around now — only the height
-    // transition may finish the exit
-    card.addEventListener("transitionend", e => {
-      if (e.target === card && e.propertyName === "height") finish();
-    });
-  }, 150);
-  setTimeout(finish, 600);
+  card.style.height = "0";
+  card.style.marginBottom = "0";
+  card.style.paddingTop = "0";
+  card.style.paddingBottom = "0";
+  // only the longest transition (height) may finish the exit
+  card.addEventListener("transitionend", e => {
+    if (e.target === card && e.propertyName === "height") finish();
+  });
+  setTimeout(finish, 450);
 }
 
 window.saveEval = (ev, pid, mode) => {
