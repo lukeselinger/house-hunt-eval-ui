@@ -125,7 +125,9 @@
     color: var(--ink); border-radius: 8px; font-size: var(--fs-body);
     text-align: left;
     transition: background-color 150ms ease-out; }
-  .sheet .item .check { margin-left: auto; color: var(--accent); }
+  /* selection marker = neutral ink (selection carries no valence) */
+  .sheet .item .check { margin-left: auto; color: var(--ink);
+    display: inline-flex; align-items: center; }
   .sheet .item.cancel { color: var(--muted); justify-content: center; }
   @keyframes fadeIn { from { opacity: 0; } }
   @keyframes sheetIn { from { opacity: 0; transform: translate(-50%, 10px); } }
@@ -188,14 +190,18 @@
      cap the content column so controls don't stretch absurdly */
   .drawer .drawer-top, .drawer .grp, .drawer .apply {
     max-width: 520px; margin-left: auto; margin-right: auto; }
-  /* selects draw their own chevron so both edges share the same padding */
+  /* selects draw their own chevron so both edges share the same padding.
+     Drawn 16px chevron via mask (iconography 2026-09-04) — colorable
+     through background-color, stroke weight matched to the icon set */
   .selwrap { position: relative; display: inline-flex; }
-  .selwrap::after { content: "▾"; position: absolute; right: var(--sp-3); top: 50%;
-    transform: translateY(-50%); pointer-events: none; color: var(--muted);
-    font-size: 11px; /* glyph-as-icon, not text — stays px, off-ramp */ }
+  .selwrap::after { content: ""; position: absolute; right: var(--sp-3); top: 50%;
+    transform: translateY(-50%); pointer-events: none;
+    width: 16px; height: 16px; background-color: var(--muted);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E") center / contain no-repeat; }
   select.ctl { appearance: none; -webkit-appearance: none;
-               /* right = --sp-3 chevron inset + --sp-4 clearance */
-               padding: 0 calc(var(--sp-3) + var(--sp-4)) 0 var(--sp-3); }
+               /* right = --sp-3 chevron inset + 16px box + --sp-2 icon gap */
+               padding: 0 calc(var(--sp-3) + 16px + var(--sp-2)) 0 var(--sp-3); }
   /* sort attribute + direction read as one control */
   .sortgrp { display: inline-flex; border: 1px solid var(--line);
              border-radius: 8px; overflow: hidden; background: var(--card); }
@@ -295,7 +301,14 @@
     font-size: var(--fs-label); padding: 0 var(--sp-1);
     font-variant-numeric: tabular-nums;
     pointer-events: none; }
-  .glyph { display: inline-block; width: 15px; text-align: right; }
+  /* fixed 16px mark box — always reserved so judging a hurdle never
+     reflows the chip row; icon-label gap = --sp-2 (iconography 2026-09-04) */
+  .glyph { display: inline-flex; width: 16px; height: 16px;
+           align-items: center; justify-content: center;
+           margin-left: var(--sp-2); vertical-align: -3px; /* optical baseline */ }
+  .tag svg, .hint svg { vertical-align: -2px; /* optical: 12px marks in text */ }
+  .sortgrp .dir { display: inline-flex; align-items: center; justify-content: center; }
+  .donetoggle { display: inline-flex; align-items: center; gap: var(--sp-2); }
   textarea { width: 100%; min-height: 72px; padding: var(--sp-2) var(--sp-3);
     border-radius: 8px; border: 1px solid var(--line); background: var(--bg);
     color: var(--ink); font: inherit; font-size: var(--fs-field); }
@@ -388,6 +401,21 @@ const SUN_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none"
 const MOON_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none"
   stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
   stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>`;
+
+// the ONE drawn icon set (iconography, 2026-09-04): shared metrics with the
+// theme icons — 1.8 stroke, round caps, currentColor. Inline marks render
+// at 16 (12 inside tags/hints); decorative always (labels carry meaning).
+const ICON_PATHS = {
+  check: "M3 8.5l3.5 3.5L13 5",
+  x: "M4 4l8 8M12 4L4 12",
+  up: "M8 13V3M4 7l4-4 4 4",
+  down: "M8 3v10M4 9l4 4 4-4",
+  chevDown: "M4 6l4 4 4-4",
+  chevRight: "M6 4l4 4-4 4",
+};
+const icon = (name, size = 16) => `<svg width="${size}" height="${size}"
+  viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
+  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON_PATHS[name]}"/></svg>`;
 
 window.toggleTheme = () => {
   const next = currentTheme() === "dark" ? "light" : "dark";
@@ -516,7 +544,7 @@ function markTags(pid) {
   return [...names].map(n => {
     const loc = (localVerdicts[pid] || []).filter(d => d.who === n).pop();
     const v = loc ? ` ${VERDICT_LABELS[loc.verdict] || loc.verdict}` : "";
-    return `<span class="tag done">✓ ${esc(n)}${esc(v)}</span>`;
+    return `<span class="tag done">${icon("check", 12)} ${esc(n)}${esc(v)}</span>`;
   }).join(" ");
 }
 
@@ -593,12 +621,12 @@ window.toggleForm = (pid, btn, mode) => {
 function gateForm(pid, hurdles) {
   return `<form onsubmit="return saveEval(event, ${pid}, 'off')" onkeydown="formEsc(event)">
     <div class="grp"><span class="lbl" id="hlbl-${pid}">Hurdles</span>
-      <span class="hint">Tap once ✓ cleared, again ✗ failed. Main road is pre-filled from MassDOT data.</span>
+      <span class="hint">Tap once ${icon("check", 12)} cleared, again ${icon("x", 12)} failed. Main road is pre-filled from MassDOT data.</span>
       <div class="opts" role="group" aria-labelledby="hlbl-${pid}">
       ${HURDLES.map(([k, label]) => {
         const st = hurdles[k] || "";
         const cls = st === "pass" ? "pass" : st === "fail" ? "fail" : "";
-        const glyph = st === "pass" ? "✓" : st === "fail" ? "✗" : "";
+        const glyph = st === "pass" ? icon("check") : st === "fail" ? icon("x") : "";
         return `<button type="button" class="${cls}" data-h="${k}"
           onclick="cycleHurdle(${pid}, '${k}', this)">${label}<span class="glyph">${glyph}</span></button>`;
       }).join("")}
@@ -638,8 +666,8 @@ window.cycleHurdle = (pid, k, btn) => {
   const next = { undefined: "pass", pass: "fail", fail: undefined }[h[k]];
   if (next) h[k] = next; else delete h[k];
   btn.className = next === "pass" ? "pass" : next === "fail" ? "fail" : "";
-  btn.querySelector(".glyph").textContent =
-    next === "pass" ? "✓" : next === "fail" ? "✗" : "";
+  btn.querySelector(".glyph").innerHTML =
+    next === "pass" ? icon("check") : next === "fail" ? icon("x") : "";
 };
 
 window.formEsc = e => {
@@ -762,7 +790,7 @@ window.openWhoSheet = () => {
         `<button class="item" role="menuitemradio" aria-checked="${w === who}"
            onclick="chooseWho('${w}')">
            <span class="ava" aria-hidden="true">${w[0]}</span>${w}
-           ${w === who ? '<span class="check">✓</span>' : ""}
+           ${w === who ? `<span class="check">${icon("check")}</span>` : ""}
          </button>`).join("")}
       <button class="item cancel" role="menuitem" onclick="closeWhoSheet()">Cancel</button>
     </div>`;
@@ -807,7 +835,7 @@ window.setSort = s => { view.sort = s; renderList(); };
 window.flipDir = () => {
   view.dir = view.dir === "asc" ? "desc" : "asc";
   for (const b of document.querySelectorAll(".sortgrp .dir"))
-    b.textContent = view.dir === "asc" ? "↑" : "↓";
+    b.innerHTML = icon(view.dir === "asc" ? "up" : "down");
   renderList();
 };
 window.toggleDone = () => { view.showDone = !view.showDone; renderList(); };
@@ -937,7 +965,7 @@ const sortGrp = sfx => `<span class="sortgrp">
        ${view.sort === v ? "selected" : ""}>${l}</option>`).join("")}
   </select></span>
   <button class="ctl dir" aria-label="Reverse sort order"
-    title="Reverse sort order" onclick="flipDir()">${view.dir === "asc" ? "↑" : "↓"}</button></span>`;
+    title="Reverse sort order" onclick="flipDir()">${icon(view.dir === "asc" ? "up" : "down")}</button></span>`;
 const yrInputs = sfx => `<input class="ctl" id="yrmin${sfx}" inputmode="numeric"
     maxlength="4" placeholder="min" aria-label="Built after year"
     value="${view.yrMin ?? ""}" oninput="setYears(this)">
@@ -1091,7 +1119,7 @@ function renderList() {
   if (total === 0) html += `<p class="note">Queue clear — no homes match these filters that ${esc(who)} hasn't evaluated.</p>`;
   if (doneTotal)
     html += `<button class="donetoggle" onclick="toggleDone()">
-      ${view.showDone ? "▾ Hide" : "▸ Show"} ${doneTotal} already evaluated by ${esc(who)}</button>`;
+      ${icon(view.showDone ? "chevDown" : "chevRight")}${view.showDone ? "Hide" : "Show"} ${doneTotal} already evaluated by ${esc(who)}</button>`;
   html += doneHtml;
   html += `<p class="note" id="nomatch" hidden>No homes match this filter.</p>`;
   html += `<p class="note">Queues are per person — homes you evaluate leave your
