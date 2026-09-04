@@ -705,6 +705,12 @@ window.saveEval = (ev, pid, mode) => {
   if (DEMO) { err.textContent = "Demo mode — nothing is saved."; return false; }
   save.disabled = true;
   save.textContent = "Saving…";
+  // instant acknowledgment at the point of attention: the card dims the
+  // moment you commit, and the confirmed exit continues from that state —
+  // one continuous departure instead of a dead pause on the network
+  const card = form.closest(".card");
+  card.style.transition = "opacity 150ms var(--ease-exit)";
+  card.style.opacity = "0.6";
   api("evaluations", {}, {
     method: "POST", raw: true,
     headers: { Prefer: "return=minimal" },
@@ -714,8 +720,9 @@ window.saveEval = (ev, pid, mode) => {
             nominated_by: who, verbatim_reasoning: text || null },
   }).then(() => {
     recordSave(pid, st.verdict, who);
-    exitCard(form.closest(".card"));
+    exitCard(card);
   }).catch(e => {
+    card.style.opacity = "";        // ease back — the card isn't going anywhere
     err.textContent = "Save failed: " + String(e.message).slice(0, 200);
     save.disabled = false;
     save.textContent = `Save as ${who}`;
