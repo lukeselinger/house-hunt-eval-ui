@@ -91,7 +91,9 @@
     padding: 0 var(--sp-3); min-height: 42px; font-size: var(--fs-ctl);
     transition: background-color 150ms ease-out, color 150ms ease-out; }
   .seg button + button { border-left: 1px solid var(--line); }
-  .seg button.on { background: var(--accent); color: var(--accent-ink); }
+  /* selection is valence-NEUTRAL (color principles 2026-09-04): every
+     "on" state is ink-inversion; green never means "selected" */
+  .seg button.on { background: var(--ink); color: var(--bg); }
   .hdr-right { display: flex; align-items: center; gap: var(--sp-1); flex: none; }
   /* ghost icon button — nice-to-have weight, full 44px hit area */
   .iconbtn { border: 0; background: none; color: var(--muted);
@@ -153,8 +155,8 @@
     padding: 0 var(--sp-3); font-size: var(--fs-ctl); flex: none;
     transition: background-color 150ms ease-out, color 150ms ease-out,
                 border-color 150ms ease-out, transform 150ms ease-out; }
-  .qchip.on { background: var(--accent); color: var(--accent-ink);
-              border-color: var(--accent); }
+  .qchip.on { background: var(--ink); color: var(--bg);
+              border-color: var(--ink); }
   /* filter drawer: full-viewport blocking takeover (2026-09-02) — opaque,
      nothing behind it is tappable, so a stray tap can neither dismiss it
      nor hit the page. Closes only via the apply button or Escape. The
@@ -243,7 +245,7 @@
          letter-spacing: 0.03em; vertical-align: 1px; }
   .tag.in { color: var(--accent); font-weight: 600; }
   .tag.listed { color: var(--listed); font-weight: 700; }
-  .tag.done { color: var(--accent); }
+  .tag.done { color: var(--accent); }   /* affirmation — green's one meaning */
   .tag.road { color: var(--warn); font-weight: 600; }
   .row2 { display: flex; justify-content: space-between; align-items: center;
           margin-top: var(--sp-2); gap: var(--sp-2); }
@@ -278,9 +280,13 @@
     font-size: var(--fs-meta); position: relative;
     transition: background-color 150ms ease-out, border-color 150ms ease-out,
                 color 150ms ease-out, transform 150ms ease-out; }
-  /* state signaled by bg+ink only — a weight change would reflow the row */
-  .opts button.on { background: var(--accent); color: var(--accent-ink);
-                    border-color: var(--accent); }
+  /* state signaled by bg+ink only — a weight change would reflow the row.
+     on = SELECTED (neutral ink-inversion, valence-safe for Exclude) vs
+     pass = AFFIRMED (green): selected and affirmed never render identically */
+  .opts button.on { background: var(--ink); color: var(--bg);
+                    border-color: var(--ink); }
+  .opts button.pass { background: var(--accent); color: var(--accent-ink);
+                      border-color: var(--accent); }
   .opts button.fail { background: var(--listed); color: var(--listed-ink);
                       border-color: var(--listed); }
   .opts button .ord { position: absolute; top: -6px; right: -5px;
@@ -297,7 +303,8 @@
           border-radius: 8px; padding: 0 var(--sp-5); min-height: 44px;
           font-size: var(--fs-ctl); font-weight: 600;
           transition: background-color 150ms ease-out, transform 150ms ease-out; }
-  .save:disabled { cursor: default; }
+  /* disabled = token pair, never opacity (color principles 2026-09-04) */
+  .save:disabled { cursor: default; background: var(--chip); color: var(--muted); }
   .err { color: var(--listed); font-size: var(--fs-meta); margin-top: var(--sp-2);
          white-space: pre-wrap; }
   .setup { max-width: 460px; margin: var(--sp-7) auto; padding: 0 var(--sp-4); }
@@ -318,11 +325,12 @@
     .qchip:not(.on):hover,
     .gate button:hover, .who-chip:hover, .sheet .item:hover { background: var(--chip); }
     .iconbtn:hover { background: var(--chip); color: var(--ink); }
-    .opts button:not(.on):not(.fail):hover {
+    .opts button:not(.on):not(.pass):not(.fail):hover {
       background: color-mix(in oklch, var(--card) 92%, var(--ink)); }
-    .save:not(:disabled):hover,
-    .opts button.on:hover, .seg button.on:hover, .qchip.on:hover {
+    .save:not(:disabled):hover, .opts button.pass:hover {
       background: color-mix(in oklch, var(--accent) 88%, black); }
+    .opts button.on:hover, .seg button.on:hover, .qchip.on:hover {
+      background: color-mix(in oklch, var(--ink) 85%, var(--bg)); }
     .links a:hover { text-decoration: underline; }
     .donetoggle:hover { color: var(--ink); }
   }
@@ -589,7 +597,7 @@ function gateForm(pid, hurdles) {
       <div class="opts" role="group" aria-labelledby="hlbl-${pid}">
       ${HURDLES.map(([k, label]) => {
         const st = hurdles[k] || "";
-        const cls = st === "pass" ? "on" : st === "fail" ? "fail" : "";
+        const cls = st === "pass" ? "pass" : st === "fail" ? "fail" : "";
         const glyph = st === "pass" ? "✓" : st === "fail" ? "✗" : "";
         return `<button type="button" class="${cls}" data-h="${k}"
           onclick="cycleHurdle(${pid}, '${k}', this)">${label}<span class="glyph">${glyph}</span></button>`;
@@ -629,7 +637,7 @@ window.cycleHurdle = (pid, k, btn) => {
   const h = formState[pid].hurdles;
   const next = { undefined: "pass", pass: "fail", fail: undefined }[h[k]];
   if (next) h[k] = next; else delete h[k];
-  btn.className = next === "pass" ? "on" : next === "fail" ? "fail" : "";
+  btn.className = next === "pass" ? "pass" : next === "fail" ? "fail" : "";
   btn.querySelector(".glyph").textContent =
     next === "pass" ? "✓" : next === "fail" ? "✗" : "";
 };
