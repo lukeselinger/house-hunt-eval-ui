@@ -392,7 +392,7 @@ const TOWN_PREDICATE = t => t === "Beverly"
 const DEMO = new URLSearchParams(location.search).get("demo") === "1";
 const PROP_FIELDS = "id,address,year_built,building_style,sqft,lot_size," +
   "assessed_value,price_estimate,last_sale_date,last_sale_price,on_market," +
-  "bedrooms,bathrooms,road_fclass,road_aadt";
+  "bedrooms,bathrooms,road_fclass,road_aadt,neighborhood";
 // data-backed category tags — INFORMATIVE ONLY, never filters (Luke's rule,
 // 2026-08-31). Thresholds ratified against the calibration set.
 const SMALL_LOT_SF = Math.round(0.30 * 43560);   // parcel-level: small lot
@@ -535,6 +535,7 @@ let who = localStorage.getItem("hh_who") || "";
 
 // ---- list view state ----
 const view = { mode: "off", town: "All", road: "any", beds: null, form: "any",
+               nhood: "any",   // Beverly-only carve-zone filter (drawer)
                sort: "est", dir: "asc", yrMin: null, yrMax: null, q: "",
                showDone: false };
 const SORT_KEYS = {
@@ -852,7 +853,16 @@ window.setMode = m => {
   renderList();
 };
 
-window.setTown = t => { view.town = t; renderList(); };
+window.setTown = t => {
+  view.town = t;
+  // the neighborhood filter is Beverly-scoped: leaving Beverly clears it
+  // (a hidden-but-active filter would break the badge's honesty)
+  if (t !== "Beverly") view.nhood = "any";
+  const w = document.getElementById("nhoodwrap");
+  if (w) w.innerHTML = nhoodGrp();   // drawer open: reveal/hide in place
+  renderList();
+};
+window.setNhood = n => { view.nhood = n; renderList(); };
 window.setRoad = r => { view.road = r; renderList(); };
 window.setBeds = b => { view.beds = b === "any" ? null : +b; renderList(); };
 window.toggleBedsChip = () => {
@@ -908,6 +918,8 @@ function passesFilters(p, town) {
   if (view.road === "res" && !(p.road_fclass === 7)) return false;
   if (view.road === "main" && !(p.road_fclass != null && p.road_fclass <= 6)) return false;
   if (view.beds !== null && !(p.bedrooms >= view.beds)) return false;
+  if (view.nhood !== "any" && town === "Beverly"
+      && p.neighborhood !== view.nhood) return false;
   if (view.form !== "any" &&
       data.streets[town + "|" + streetOf(p.address)]?.form !== view.form)
     return false;
@@ -985,6 +997,21 @@ const selBeds = () => `<span class="selwrap"><select class="ctl"
   ${[3, 4, 5].map(n => `<option value="${n}"
      ${view.beds === n ? "selected" : ""}>${n}+ beds</option>`).join("")}
   </select></span>`;
+// Beverly's carve zones, derived from the loaded rows (adapts if the
+// ratified carve ever changes). The whole group renders only while the
+// town scope is Beverly — the other towns have no sub-town layer.
+const beverlyZones = () => [...new Set(
+  [...(data.watch.Beverly?.homes || []), ...(data.onmarket.Beverly?.homes || [])]
+    .map(p => p.neighborhood).filter(Boolean))].sort();
+const selNhood = () => `<span class="selwrap"><select class="ctl"
+    aria-label="Neighborhood" onchange="setNhood(this.value)">
+  <option value="any" ${view.nhood === "any" ? "selected" : ""}>All neighborhoods</option>
+  ${beverlyZones().map(z => `<option value="${esc(z)}"
+     ${view.nhood === z ? "selected" : ""}>${esc(z)}</option>`).join("")}
+  </select></span>`;
+const nhoodGrp = () => view.town === "Beverly" && beverlyZones().length
+  ? `<label class="grp"><span class="lbl">Neighborhood</span>${selNhood()}</label>`
+  : "";
 const sortGrp = sfx => `<span class="sortgrp">
   <span class="selwrap"><select class="ctl" id="sortsel${sfx}"
       aria-label="Sort by" onchange="setSort(this.value)">
@@ -1015,7 +1042,7 @@ window.openFilterSheet = () => {
   el.innerHTML = `<div class="drawer" role="dialog" aria-modal="true"
       aria-label="Filters" tabindex="-1">
       <div class="drawer-top"><span class="drawer-title">Filters</span></div>
-      ${grp("Town", selTown())}${grp("Road", selRoad())}
+      ${grp("Town", selTown())}<span id="nhoodwrap">${nhoodGrp()}</span>${grp("Road", selRoad())}
       ${grp("Street type", selForm())}${grp("Bedrooms", selBeds())}
       <div class="grp"><span class="lbl">Sort</span>${sortGrp("-s")}</div>
       <div class="grp"><span class="lbl">Built</span>
@@ -1065,6 +1092,7 @@ function syncFilterSummary() {
   count(view.town !== "All", null);              // shown by the town select
   count(view.beds === 4, null);                  // shown by the 4+ beds chip
   count(view.beds !== null && view.beds !== 4, `${view.beds}+ beds`);
+  count(view.nhood !== "any", view.nhood);
   count(view.road !== "any",
         view.road === "res" ? "residential" : "main road");
   count(view.form !== "any", formLabel(view.form));
