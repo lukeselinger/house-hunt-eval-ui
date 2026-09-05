@@ -378,8 +378,17 @@ const SUPABASE_URL = "https://ivqotvufsdiultnhbdxc.supabase.co";
 const BAKED_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2cW90dnVmc2RpdWx0bmhiZHhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5MDkyODksImV4cCI6MjA5NjQ4NTI4OX0.kgYnKuk6IekYJY66sLyddFk2IddWzBeR5W5VccxbZgM";           // anon (publishable) key ONLY — never the service key
 const CEILING = Number("1300000") || 1300000;
 const TENURE_YEARS = 15;
-const TOWNS = ["Wenham", "Hamilton"];
-const ZIPS = { Wenham: "01984", Hamilton: "01982" };
+const TOWNS = ["Wenham", "Hamilton", "Beverly"];
+const ZIPS = { Wenham: "01984", Hamilton: "01982", Beverly: "01915" };
+// Per-town watchlist predicate differences (Beverly ratification 2026-09-04,
+// house-hunt-beverly-spike.md): Wenham/Hamilton are whole-town in-target;
+// Beverly is carved (in_target_area = ratified zones) and its colonial-family
+// style set includes 'Dutch Col', which ilike *COLONIAL* alone misses.
+// Beverly rows have NULL beds/baths until the assessor-card enrichment runs.
+const TOWN_PREDICATE = t => t === "Beverly"
+  ? { in_target_area: "is.true",
+      or: "(building_style.ilike.*COLONIAL*,building_style.eq.Dutch Col)" }
+  : { building_style: "ilike.*COLONIAL*" };
 const DEMO = new URLSearchParams(location.search).get("demo") === "1";
 const PROP_FIELDS = "id,address,year_built,building_style,sqft,lot_size," +
   "assessed_value,price_estimate,last_sale_date,last_sale_price,on_market," +
@@ -1219,7 +1228,7 @@ async function loadAll() {
   const watch = {}, onmarket = {};
   for (const town of TOWNS) {
     const wl = await api("properties", {
-      town: `eq.${town}`, building_style: "ilike.*COLONIAL*",
+      town: `eq.${town}`, ...TOWN_PREDICATE(town),
       sqft: "gte.1800", last_sale_price: "gt.100000",
       last_sale_date: `lt.${cutoff}`, price_estimate: `lte.${CEILING}`,
       select: PROP_FIELDS, order: "price_estimate.asc" });
