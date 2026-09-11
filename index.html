@@ -2,1312 +2,1580 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
-<title>House Hunt — Evaluate</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>House Hunt — Eval v2</title>
+<script>
+  // Resolve theme before first paint so refresh never flashes the wrong theme.
+  document.documentElement.dataset.theme =
+    localStorage.getItem('hh2-theme') ||
+    (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+</script>
 <style>
-  :root {
-    color-scheme: light dark;
-    /* spacing scale (ratified 2026-09-02): every padding/margin/gap uses a
-       token — a raw length in a rule is a defect. Optical exceptions of
-       1–2px allowed with a comment. */
-    --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
-    --sp-5: 24px; --sp-6: 32px; --sp-7: 48px;
-    /* type ramp (rem, 2026-09-02): rem so text follows the user's font-size
-       preference — px reference values assume the 16px default root. Spacing
-       and control metrics deliberately stay px (density is the product).
-       --fs-field carries the iOS input-zoom guard: fields must never
-       compute below 16px on touch, even at a reduced root size. */
-    --fs-label: 0.75rem;    /* 12 — uppercase labels, hints, tags */
-    --fs-meta:  0.8125rem;  /* 13 — meta/price lines, notes, errors */
-    --fs-ctl:   0.875rem;   /* 14 — header controls, links, save */
-    --fs-body:  0.9375rem;  /* 15 — body, addresses, option chips */
-    --fs-field: max(1rem, 16px); /* 16 — fields on touch, textarea */
-    --fs-amt:   1.0625rem;  /* 17 — card primary figure */
-    --fs-gate:  1.125rem;   /* 18 — gate buttons */
-    --fs-title: 1.375rem;   /* 22 — gate/setup heading */
-    --bg: #faf9f7; --card: #ffffff; --ink: #1a1a1a; --muted: #6b6b6b;
-    --line: rgba(0, 0, 0, 0.08);        /* separation borders: alpha in light */
-    --accent: #2f6f4f; --accent-ink: #ffffff;
-    --chip: #f0eee9;
-    --warn: #a04b12; --warn-ink: #ffffff;
-    --listed: #b3261e; --listed-ink: #ffffff;
-    --elev: 0 0 0 1px rgb(0 0 0 / 0.05), 0 1px 3px rgb(0 0 0 / 0.05),
-            0 4px 10px -4px rgb(0 0 0 / 0.05);
-    /* the app's one custom curve — exits only (DESIGN.md §Interaction) */
-    --ease-exit: cubic-bezier(0.19, 1, 0.22, 1);
+/* ---------- tokens ---------- */
+:root {
+  /* neutrals: cool gray (hue 260) to sit with the blue accent */
+  --bg:      oklch(0.972 0.004 260);
+  --card:    oklch(0.995 0.001 260);
+  --well:    oklch(0.955 0.005 260);
+  --ink:     oklch(0.22 0.015 260);
+  --ink-2:   oklch(0.45 0.015 260);
+  --ink-3:   oklch(0.52 0.012 260);
+  --ink-disabled: oklch(0.62 0.008 260);
+  --line:    oklch(0 0 0 / 0.08);          /* light mode: alpha border recedes */
+  --line-strong: oklch(0 0 0 / 0.14);
+
+  --accent:        oklch(0.5 0.17 262);
+  --accent-hover:  color-mix(in oklch, oklch(0.5 0.17 262) 86%, black);
+  --accent-ink:    oklch(0.99 0 0);
+  --accent-tint:   oklch(0.95 0.025 262);
+  --accent-strong: oklch(0.42 0.17 262);
+
+  --good-fg:   oklch(0.42 0.12 152);
+  --good-tint: oklch(0.95 0.035 152);
+  --bad-fg:    oklch(0.45 0.17 27);
+  --bad-tint:  oklch(0.955 0.025 27);
+  --warn-fg:   oklch(0.44 0.1 70);
+  --warn-tint: oklch(0.955 0.05 85);
+
+  --shadow-card:
+    0 0 0 1px oklch(0 0 0 / 0.05),
+    0 1px 3px oklch(0 0 0 / 0.05),
+    0 4px 10px -4px oklch(0 0 0 / 0.05);
+
+  --border-hairline: 1px;
+  --r-card: 12px;
+  --r-ctl: 8px;
+  --r-well: 6px;
+
+  --z-sticky: 100;
+  --z-screen: 200;
+  --z-toast: 400;
+  /* saved-card exit curve. Feel-iteration 1 (Luke, 2026-09-11: "way too fast,
+     I just saw the list jump"): the expo curve (0.19,1,0.22,1) put ~90% of a
+     600-900px collapse into the first 90ms. Quad ease-out spreads it across
+     the full 300ms — same durations, only the easing changed. */
+  --ease-exit: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+@media (min-resolution: 192dpi) {
+  :root { --border-hairline: 0.5px; }
+}
+[data-theme="dark"] {
+  --bg:      oklch(0.185 0.008 260);
+  --card:    oklch(0.235 0.01 260);
+  --well:    oklch(0.205 0.009 260);
+  --ink:     oklch(0.93 0.006 260);
+  --ink-2:   oklch(0.73 0.01 260);
+  --ink-3:   oklch(0.66 0.01 260);
+  --ink-disabled: oklch(0.52 0.008 260);
+  --line:    oklch(0.33 0.012 260);        /* dark mode: solid border sits quietly */
+  --line-strong: oklch(0.4 0.012 260);
+
+  --accent:        oklch(0.58 0.13 262);   /* desaturated for dark */
+  --accent-hover:  color-mix(in oklch, oklch(0.58 0.13 262) 88%, white);
+  --accent-ink:    oklch(0.99 0 0);
+  --accent-tint:   oklch(0.29 0.05 262);
+  --accent-strong: oklch(0.8 0.1 262);
+
+  --good-fg:   oklch(0.8 0.11 152);
+  --good-tint: oklch(0.29 0.045 152);
+  --bad-fg:    oklch(0.78 0.12 27);
+  --bad-tint:  oklch(0.29 0.04 27);
+  --warn-fg:   oklch(0.82 0.1 85);
+  --warn-tint: oklch(0.29 0.045 85);
+
+  --shadow-card: 0 0 0 1px oklch(1 0 0 / 0.09);  /* shadows collapse to a ring */
+}
+
+/* ---------- base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html { height: 100%; }
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 1rem/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-synthesis: none;
+  -webkit-tap-highlight-color: transparent;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+}
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+[hidden] { display: none !important; }
+a { color: var(--accent-strong); text-decoration-thickness: from-font; text-underline-offset: 2px; }
+.wrap { max-width: 640px; margin-inline: auto; padding-inline: 16px; }
+.wrap.content { padding-bottom: 50vh; }  /* room below the list so the last card can still be pinned under the tabs */
+.num { font-variant-numeric: tabular-nums; }
+.no-transitions *, .no-transitions { transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  /* Gentler, not zero (2026-09-11): opacity and colour may still ease; nothing
+     may move or resize. Restricting transition-property keeps each rule's own
+     durations for the allowed properties and drops transform/height/margin. */
+  *, *::before, *::after {
+    transition-property: opacity, background-color, color, border-color, box-shadow !important;
+    animation: none !important;
   }
-  /* theme: data-theme on <html> overrides the system preference (set before
-     first paint from localStorage). The two dark blocks below must stay
-     IDENTICAL — one serves system-dark, one serves the manual toggle. */
-  :root[data-theme="light"] { color-scheme: light; }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #17181a; --card: #202225; --ink: #ececec; --muted: #9a9a9a;
-      --line: #34363a;                  /* separation borders: solid in dark */
-      --accent: #4d9a74; --accent-ink: #0e1411;
-      --chip: #2b2d31;
-      --warn: #d98a4f; --warn-ink: #1c1206;      /* dark ink on light state colors */
-      --listed: #e57373; --listed-ink: #1c1012;
-      --elev: 0 0 0 1px rgb(255 255 255 / 0.09);   /* shadows -> white ring */
-    }
-  }
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --bg: #17181a; --card: #202225; --ink: #ececec; --muted: #9a9a9a;
-    --line: #34363a;
-    --accent: #4d9a74; --accent-ink: #0e1411;
-    --chip: #2b2d31;
-    --warn: #d98a4f; --warn-ink: #1c1206;
-    --listed: #e57373; --listed-ink: #1c1012;
-    --elev: 0 0 0 1px rgb(255 255 255 / 0.09);
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink);
-         -webkit-font-smoothing: antialiased;
-         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-         font-size: var(--fs-body); line-height: 1.45; }
-  button, a, input, select, textarea { touch-action: manipulation; }
-  button { font: inherit; cursor: pointer; }
-  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-  /* leading roles (ratified 2026-09-02): body 1.45 is the inherited default;
-     single-line UI takes 1.2, reading text 1.5, headings 1.2 — declared
-     here so no role rides on ambient reading-leading. */
-  .seg button, .qchip, .ctl, .evalbtn, .save, .opts button, .tag, .lbl,
-  .stats dt, .stats dd, .fsummary, .drawer-title, .who-chip, .sheet .item,
-  .donetoggle { line-height: 1.2; }
-  .note, .hint, .err, .fine, textarea { line-height: 1.5; }
-  h2, .gate h1 { line-height: 1.2; }
-  header { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--line);
-           position: sticky; top: 0; background: var(--bg); z-index: 5; }
-  .hdr-row { display: flex; gap: var(--sp-2); align-items: stretch; flex-wrap: wrap;
-             margin-top: var(--sp-2); }
-  .hdr-row:first-child { margin-top: 0; }
-  /* row 1 = identity + view: content-sized, never wraps, never separates */
-  .hdr-row.primary { justify-content: space-between; flex-wrap: nowrap; }
-  .seg { display: flex; border: 1px solid var(--line); border-radius: 8px;
-         overflow: hidden; }
-  .seg button { border: 0; background: var(--card); color: var(--ink);
-    padding: 0 var(--sp-3); min-height: 42px; font-size: var(--fs-ctl);
-    transition: background-color 150ms ease-out, color 150ms ease-out; }
-  .seg button + button { border-left: 1px solid var(--line); }
-  /* selection is valence-NEUTRAL (color principles 2026-09-04): every
-     "on" state is ink-inversion; green never means "selected" */
-  .seg button.on { background: var(--ink); color: var(--bg); }
-  .hdr-right { display: flex; align-items: center; gap: var(--sp-1); flex: none; }
-  /* ghost icon button — nice-to-have weight, full 44px hit area */
-  .iconbtn { border: 0; background: none; color: var(--muted);
-    min-width: 44px; min-height: 44px; border-radius: 8px;
-    display: inline-flex; align-items: center; justify-content: center;
-    transition: color 150ms ease-out, background-color 150ms ease-out,
-                transform 150ms ease-out; }
-  /* active-profile chip: shows who's recording; switching is behind an
-     action sheet — a deliberate act, not a view toggle */
-  .who-chip { display: inline-flex; align-items: center; gap: var(--sp-2);
-    border: 1px solid var(--line); border-radius: 22px; background: var(--card);
-    color: var(--ink); min-height: 44px; font-size: var(--fs-ctl);
-    /* left 6px = --sp-2 − 2 optical: avatar inset tracks the pill's 7px
-       vertical inset */
-    padding: 0 var(--sp-3) 0 6px;
-    transition: background-color 150ms ease-out, transform 150ms ease-out; }
-  .ava { width: 30px; height: 30px; border-radius: 50%; background: var(--accent);
-    color: var(--accent-ink); display: inline-flex; align-items: center;
-    justify-content: center; font-size: var(--fs-ctl); flex: none; }
-  .sheet-backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 0.35);
-    z-index: 100; animation: fadeIn 150ms ease-out; }
-  .sheet { position: fixed; left: 50%; bottom: var(--sp-4);
-    transform: translateX(-50%); width: min(420px, calc(100% - var(--sp-5)));
-    background: var(--card); border-radius: 14px; padding: var(--sp-2);
-    box-shadow: var(--elev), 0 12px 40px -12px rgb(0 0 0 / 0.45); z-index: 101;
-    animation: sheetIn 180ms ease-out; }
-  .sheet .item { display: flex; width: 100%; align-items: center; gap: var(--sp-3);
-    padding: 0 var(--sp-3); min-height: 52px; border: 0; background: none;
-    color: var(--ink); border-radius: 8px; font-size: var(--fs-body);
-    text-align: left;
-    transition: background-color 150ms ease-out; }
-  /* selection marker = neutral ink (selection carries no valence) */
-  .sheet .item .check { margin-left: auto; color: var(--ink);
-    display: inline-flex; align-items: center; }
-  .sheet .item.cancel { color: var(--muted); justify-content: center; }
-  @keyframes fadeIn { from { opacity: 0; } }
-  @keyframes sheetIn { from { opacity: 0; transform: translate(-50%, 10px); } }
-  select.ctl, button.ctl, input.ctl { border: 1px solid var(--line);
-    border-radius: 8px; background: var(--card); color: var(--ink);
-    min-height: 44px; padding: 0 var(--sp-3); }
-  button.ctl { transition: background-color 150ms ease-out,
-               transform 150ms ease-out; }
-  /* one control type size: 14px. Exception: on touch devices, FIELDS
-     (inputs/selects) go 16px — under that, iOS Safari zooms on focus. */
-  header button, header input, header select { font-size: var(--fs-ctl); }
-  @media (pointer: coarse) {
-    header input, header select { font-size: var(--fs-field); }
-  }
-  /* THE filter bar — identical at every width (Redfin/Airbnb reference
-     study, 2026-09-02): Filters button carrying a UNIFIED active count +
-     a fixed persistent set (town select, "4+ beds" chip; Luke-ratified,
-     must fit 375px on ONE line) + ellipsizing summary of drawer-only
-     actives. Never wraps; never a width-dependent subset. */
-  .fsummary { color: var(--muted); font-size: var(--fs-meta); white-space: nowrap;
-              overflow: hidden; text-overflow: ellipsis; min-width: 0;
-              flex: 1; }
-  /* quick-filter chip: one-tap boolean, value in its label; active state
-     matches the seg (bg + ink only, weight never changes) */
-  .qchip { border: 1px solid var(--line); background: var(--card);
-    color: var(--ink); border-radius: 8px; min-height: 44px;
-    padding: 0 var(--sp-3); font-size: var(--fs-ctl); flex: none;
-    transition: background-color 150ms ease-out, color 150ms ease-out,
-                border-color 150ms ease-out, transform 150ms ease-out; }
-  .qchip.on { background: var(--ink); color: var(--bg);
-              border-color: var(--ink); }
-  /* filter drawer: full-viewport blocking takeover (2026-09-02) — opaque,
-     nothing behind it is tappable, so a stray tap can neither dismiss it
-     nor hit the page. Closes only via the apply button or Escape. The
-     CONTAINER takes focus on open, never a control — focusing a select on
-     touch expands its picker, which reads as premature intent. */
-  .drawer { position: fixed; inset: 0; z-index: 101; background: var(--bg);
-    padding: 0 var(--sp-4) max(var(--sp-4), env(safe-area-inset-bottom));
-    overflow-y: auto; outline: none; animation: drawerIn 200ms ease-out; }
-  @keyframes drawerIn { from { opacity: 0; transform: translateY(20px); } }
-  .drawer-top { display: flex; align-items: center; min-height: 52px; }
-  .drawer-title { font-size: var(--fs-body); font-weight: 600; }
-  .drawer select, .drawer input { font-size: var(--fs-field); }
-  .drawer .selwrap { display: flex; }
-  .drawer select.ctl, .drawer input[type=search] { width: 100%; }
-  .drawer .sortgrp { display: flex; }
-  .drawer .sortgrp .selwrap { flex: 1; }
-  .drawer .yr { display: flex; align-items: center; gap: var(--sp-2);
-                color: var(--muted); }
-  .drawer .yr input { flex: 1; width: auto; min-width: 0; text-align: center;
-                      font-variant-numeric: tabular-nums; }
-  .drawer input[type=search] { padding: var(--sp-2) var(--sp-3); min-height: 44px;
-    border: 1px solid var(--line); border-radius: 8px;
-    background: var(--card); color: var(--ink); }
-  /* apply = the one way out: sticky in the thumb zone, carries the live
-     result count so filtering stays feedback-driven while blocked */
-  .drawer .apply { position: sticky; bottom: 0; width: 100%; display: block;
-                   margin-top: var(--sp-4); }
-  /* the takeover spans wider viewports too (drawer shows below 1060px) —
-     cap the content column so controls don't stretch absurdly */
-  .drawer .drawer-top, .drawer .grp, .drawer .apply {
-    max-width: 520px; margin-left: auto; margin-right: auto; }
-  /* selects draw their own chevron so both edges share the same padding.
-     Drawn 16px chevron via mask (iconography 2026-09-04) — colorable
-     through background-color, stroke weight matched to the icon set */
-  .selwrap { position: relative; display: inline-flex; }
-  .selwrap::after { content: ""; position: absolute; right: var(--sp-3); top: 50%;
-    transform: translateY(-50%); pointer-events: none;
-    width: 16px; height: 16px; background-color: var(--muted);
-    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E") center / contain no-repeat;
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E") center / contain no-repeat; }
-  select.ctl { appearance: none; -webkit-appearance: none;
-               /* right = --sp-3 chevron inset + 16px box + --sp-2 icon gap */
-               padding: 0 calc(var(--sp-3) + 16px + var(--sp-2)) 0 var(--sp-3); }
-  /* sort attribute + direction read as one control */
-  .sortgrp { display: inline-flex; border: 1px solid var(--line);
-             border-radius: 8px; overflow: hidden; background: var(--card); }
-  .sortgrp .ctl { border: 0; border-radius: 0; min-height: 42px; }
-  .sortgrp .dir { border-left: 1px solid var(--line); min-width: 44px;
-                  text-align: center; }
-  .yr input { width: 60px; text-align: center; padding: 0 var(--sp-1);
-              font-variant-numeric: tabular-nums; }
-  /* the list owns its rhythm (Q7, 2026-09-04): gap on the container, not
-     margins on cards. Flex gaps don't collapse, so h2/note margins shrink
-     to their on-scale compensations (section lead-in = gap + --sp-1). */
-  main { max-width: 720px; margin: 0 auto;
-         padding: var(--sp-3) var(--sp-3) var(--sp-7);
-         display: flex; flex-direction: column; gap: var(--sp-3); }
-  h2 { font-size: var(--fs-body); margin: var(--sp-1) var(--sp-1) 0;
-       color: var(--muted);
-       font-weight: 600; font-variant-numeric: tabular-nums; }
-  h2 .prov { font-size: var(--fs-label); font-weight: 400; }
-  .note { color: var(--muted); font-size: var(--fs-meta);
-          margin: 0 var(--sp-1); }
-  .card { background: var(--card); border-radius: 10px; box-shadow: var(--elev);
-          padding: var(--sp-3) var(--sp-4); }
-  .addr { font-weight: 650; font-size: var(--fs-body); }
-  .qual { color: var(--muted); font-size: var(--fs-meta);
-          margin-top: 1px; /* optical: tucks qualifier under the address */ }
-  /* the decision figure leads; context is fine print below the stat grid */
-  .pricerow { display: flex; align-items: baseline; gap: var(--sp-2);
-              margin-top: var(--sp-2);
-              color: var(--muted); font-size: var(--fs-meta);
-              font-variant-numeric: tabular-nums; }
-  .pricerow .amt { font-size: var(--fs-amt); font-weight: 650; color: var(--ink);
-                   letter-spacing: -0.01em; }
-  /* comparable attributes in fixed columns — same template every card, so
-     one column scans vertically across cards */
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr);
-           gap: 0 var(--sp-3); margin: var(--sp-2) 0 0; max-width: 420px; }
-  .stats div { min-width: 0; }
-  .stats dt { font-size: var(--fs-label); text-transform: uppercase;
-              letter-spacing: 0.05em; color: var(--muted); }
-  .stats dd { margin: 0; font-size: var(--fs-body);
-              font-variant-numeric: tabular-nums;
-              white-space: nowrap; }
-  .fine { color: var(--muted); font-size: var(--fs-label);
-          margin-top: var(--sp-2);
-          font-variant-numeric: tabular-nums; }
-  .tag { display: inline-block; font-size: var(--fs-label);
-         /* 7px = --sp-2 − 1, 1px vertical + align: optical cap centering
-            beside 15px addresses */
-         padding: 1px 7px;
-         border-radius: 10px; background: var(--chip); color: var(--muted);
-         letter-spacing: 0.03em; vertical-align: 1px; }
-  .tag.in { color: var(--accent); font-weight: 600; }
-  .tag.listed { color: var(--listed); font-weight: 700; }
-  .tag.done { color: var(--accent); }   /* affirmation — green's one meaning */
-  .tag.road { color: var(--warn); font-weight: 600; }
-  .row2 { display: flex; justify-content: space-between; align-items: center;
-          margin-top: var(--sp-2); gap: var(--sp-2); }
-  .links { display: flex; }
-  .links a { color: var(--accent); text-decoration: none;
-             font-size: var(--fs-ctl);
-             display: inline-flex; align-items: center; min-height: 44px;
-             padding: 0 var(--sp-2); }
-  /* hit-area compensation, not a spacing nudge: first link's text stays
-     flush with the card's content edge */
-  .links a:first-child { margin-left: calc(-1 * var(--sp-2)); }
-  .evalbtn { border: 0; background: var(--chip); color: var(--ink);
-             border-radius: 8px; padding: 0 var(--sp-4); min-height: 44px;
-             font-size: var(--fs-ctl); box-shadow: 0 0 0 1px var(--line);
-             transition: background-color 150ms ease-out, transform 150ms ease-out; }
-  .donetoggle { border: 0; background: none; color: var(--muted);
-    font-size: var(--fs-ctl); padding: var(--sp-2) var(--sp-1); min-height: 44px;
-    transition: color 150ms ease-out; }
-  form { border-top: 1px dashed var(--line); margin-top: var(--sp-3);
-         padding-top: var(--sp-3); }
-  /* block: some grps are <label>s (inline by default), which silently
-     ignored the drawer's 520px column cap */
-  .grp { display: block; margin-bottom: var(--sp-3); }
-  .grp .lbl { display: block; font-size: var(--fs-label); color: var(--muted);
-              margin-bottom: var(--sp-1); text-transform: uppercase;
-              letter-spacing: 0.06em; }
-  .grp .hint { display: block; font-size: var(--fs-label); color: var(--muted);
-               margin: 0 0 var(--sp-2); }
-  .opts { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
-  .opts button { border: 1px solid var(--line); background: var(--card);
-    color: var(--ink); border-radius: 8px; padding: 0 var(--sp-3); min-height: 44px;
-    font-size: var(--fs-ctl); position: relative;  /* control floor: never meta */
-    transition: background-color 150ms ease-out, border-color 150ms ease-out,
-                color 150ms ease-out, transform 150ms ease-out; }
-  /* state signaled by bg+ink only — a weight change would reflow the row.
-     on = SELECTED (neutral ink-inversion, valence-safe for Exclude) vs
-     pass = AFFIRMED (green): selected and affirmed never render identically */
-  .opts button.on { background: var(--ink); color: var(--bg);
-                    border-color: var(--ink); }
-  .opts button.pass { background: var(--accent); color: var(--accent-ink);
-                      border-color: var(--accent); }
-  .opts button.fail { background: var(--listed); color: var(--listed-ink);
-                      border-color: var(--listed); }
-  .opts button .ord { position: absolute; top: -6px; right: -5px;
-    /* offsets are badge-overhang positioning, not sibling spacing */
-    background: var(--warn); color: var(--warn-ink); border-radius: 8px;
-    font-size: var(--fs-label); padding: 0 var(--sp-1);
-    font-variant-numeric: tabular-nums;
-    pointer-events: none; }
-  /* fixed 16px mark box — always reserved so judging a hurdle never
-     reflows the chip row; icon-label gap = --sp-2 (iconography 2026-09-04) */
-  .glyph { display: inline-flex; width: 16px; height: 16px;
-           align-items: center; justify-content: center;
-           margin-left: var(--sp-2); vertical-align: -3px; /* optical baseline */ }
-  .tag svg, .hint svg { vertical-align: -2px; /* optical: 12px marks in text */ }
-  .sortgrp .dir { display: inline-flex; align-items: center; justify-content: center; }
-  .donetoggle { display: inline-flex; align-items: center; gap: var(--sp-2); }
-  textarea { width: 100%; min-height: 72px; padding: var(--sp-2) var(--sp-3);
-    border-radius: 8px; border: 1px solid var(--line); background: var(--bg);
-    color: var(--ink); font: inherit; font-size: var(--fs-field); }
-  .save { background: var(--accent); color: var(--accent-ink); border: 0;
-          border-radius: 8px; padding: 0 var(--sp-5); min-height: 44px;
-          font-size: var(--fs-ctl); font-weight: 600;
-          transition: background-color 150ms ease-out, transform 150ms ease-out; }
-  /* disabled = token pair, never opacity (color principles 2026-09-04) */
-  .save:disabled { cursor: default; background: var(--chip); color: var(--muted); }
-  .err { color: var(--listed); font-size: var(--fs-meta); margin-top: var(--sp-2);
-         white-space: pre-wrap; }
-  .setup { max-width: 460px; margin: var(--sp-7) auto; padding: 0 var(--sp-4); }
-  .setup input { width: 100%; padding: var(--sp-2) var(--sp-3);
-    border: 1px solid var(--line);
-    border-radius: 8px; background: var(--card); color: var(--ink);
-    margin: var(--sp-3) 0; font-size: var(--fs-field); min-height: 44px; }
-  .gate { max-width: 420px; margin: 18vh auto 0; padding: 0 var(--sp-4);
-          text-align: center; }
-  .gate h1 { font-size: var(--fs-title); margin-bottom: var(--sp-5); }
-  .gate button { display: block; width: 100%; margin: var(--sp-3) 0;
-    min-height: 64px;
-    font-size: var(--fs-gate); font-weight: 600; border: 0; border-radius: 10px;
-    background: var(--card); color: var(--ink); box-shadow: var(--elev);
-    transition: background-color 150ms ease-out, transform 150ms ease-out; }
-  @media (hover: hover) and (pointer: fine) {
-    .seg button:not(.on):hover, .evalbtn:hover, button.ctl:hover,
-    .qchip:not(.on):hover,
-    .gate button:hover, .who-chip:hover, .sheet .item:hover { background: var(--chip); }
-    .iconbtn:hover { background: var(--chip); color: var(--ink); }
-    .opts button:not(.on):not(.pass):not(.fail):hover {
-      background: color-mix(in oklch, var(--card) 92%, var(--ink)); }
-    .save:not(:disabled):hover, .opts button.pass:hover {
-      background: color-mix(in oklch, var(--accent) 88%, black); }
-    .opts button.on:hover, .seg button.on:hover, .qchip.on:hover {
-      background: color-mix(in oklch, var(--ink) 85%, var(--bg)); }
-    .links a:hover { text-decoration: underline; }
-    .donetoggle:hover { color: var(--ink); }
-  }
-  /* phones: the merged filter row wraps to several lines — a sticky header
-     that tall would eat the viewport; let it scroll away */
-  @media (max-width: 540px) {
-    header { position: static; }
-  }
-  /* very narrow: chip collapses to the avatar; row 1 still never wraps */
-  @media (max-width: 430px) {
-    .who-chip .name { display: none; }
-    /* 6px = --sp-2 − 2 optical: even inset around the bare avatar */
-    .who-chip { padding: 0 6px; }
-  }
-  button:not(:disabled):active { transform: scale(0.96); }
-  @media (prefers-reduced-motion: reduce) {
-    * { transition: none !important; animation: none !important; }
-    button:active { transform: none; }
-  }
+  :active { transform: none !important; }   /* press feedback is movement */
+}
+
+/* ---------- header ---------- */
+.brand-row {
+  display: flex; align-items: center; gap: 8px;
+  padding-block: 10px;
+}
+.brand { font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); margin-right: auto; user-select: none; }
+.chip-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 44px; padding-inline: 12px;
+  border-radius: 999px;
+  font-size: 0.875rem; font-weight: 500;
+  color: var(--ink-2);
+  transition: background-color 150ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .chip-btn:hover { background: var(--well); }
+}
+.chip-btn:active { transform: scale(0.97); }
+.chip-btn .avatar {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--accent-tint); color: var(--accent-strong);
+  font-size: 0.75rem; font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+
+/* ---------- tabs ---------- */
+.tabs-bar {
+  position: sticky; top: 0; z-index: var(--z-sticky);
+  background: var(--bg);
+  border-bottom: var(--border-hairline) solid var(--line);
+}
+.tabs { display: flex; }
+.tab {
+  flex: 1;
+  min-height: 48px;
+  font-size: 0.9375rem; font-weight: 600;
+  color: var(--ink-3);
+  border-bottom: 2px solid transparent;
+  transition: color 150ms ease, border-color 150ms ease;
+}
+.tab[aria-selected="true"] { color: var(--accent-strong); border-bottom-color: var(--accent); }
+@media (hover: hover) and (pointer: fine) {
+  .tab:hover { color: var(--ink); }
+}
+.tab .count { font-weight: 500; color: var(--ink-3); margin-left: 4px; }
+
+/* ---------- filters ---------- */
+.filters { padding-block: 12px 4px; display: grid; gap: 8px; }
+.search-row { position: relative; }
+.search-row svg {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  pointer-events: none; color: var(--ink-3);
+}
+input[type="search"] {
+  width: 100%;
+  font-size: 1rem;              /* 16px floor: no iOS zoom */
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  padding: 10px 12px 10px 38px;
+  min-height: 44px;
+}
+input[type="search"]::placeholder { color: var(--ink-3); }
+input[type="search"]:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-tint); }
+.select-row {
+  display: flex; gap: 8px; overflow-x: auto;
+  scrollbar-width: none;
+  margin-inline: -16px; padding-inline: 16px;   /* full-bleed scroll, aligned content */
+  padding-bottom: 4px;
+}
+.select-row::-webkit-scrollbar { display: none; }
+.select-row select {
+  font-size: 1rem;
+  color: var(--ink-2);
+  background-color: var(--card);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='m1 1 4 4 4-4' stroke='%23888f9d' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 8px 30px 8px 12px;
+  min-height: 44px;
+  flex: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.select-row select.active { border-color: var(--accent); color: var(--accent-strong); background: var(--accent-tint); }
+.filter-summary {
+  font-size: 0.8125rem; color: var(--ink-2);
+  display: flex; align-items: center; gap: 10px;
+}
+.filter-summary button { color: var(--accent-strong); font-size: 0.8125rem; font-weight: 500; min-height: 44px; }
+
+/* ---------- cards ---------- */
+.list { display: flex; flex-direction: column; gap: 12px; padding-block: 12px; }
+html { overflow-anchor: none; }  /* we place the scroll ourselves around exits; the browser's re-anchoring fights that */  /* flex, not grid: a departing card collapses its own slot via negative margin */
+.card.exiting { pointer-events: none; }   /* the exit never gates input: taps fall through to what's beneath */
+.card {
+  background: var(--card);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+  padding: 14px 16px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 250px;
+}
+.card-head { display: flex; align-items: baseline; gap: 8px; }
+.card-head h3 { margin: 0; font-size: 1.0625rem; font-weight: 600; line-height: 1.3; }
+.card-head .town { font-size: 0.8125rem; color: var(--ink-3); margin-left: auto; flex: none; }
+.price-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.price { font-size: 1.25rem; font-weight: 650; letter-spacing: -0.01em; }
+.price-sub { font-size: 0.8125rem; color: var(--ink-2); }
+.cut { font-size: 0.8125rem; color: var(--good-fg); font-weight: 500; }
+.specs { margin: 6px 0 0; font-size: 0.875rem; color: var(--ink-2);
+  /* B2 trial: the same figure sits in the same column on every card (comparison
+     machinery); labels subtracted — units self-identify. Each cell has a fixed
+     floor so cards align; the row wraps (rather than overflows) below ~360px. */
+  display: flex; flex-wrap: wrap; column-gap: 4px; row-gap: 2px; white-space: nowrap; }
+.specs span { flex: 0 0 auto; }
+.specs span:nth-child(1) { min-width: 9ch; }     /* "4bd · 2.5ba" */
+.specs span:nth-child(2) { min-width: 8.5ch; }   /* "2,850 sqft" */
+.specs span:nth-child(3) { min-width: 6ch; }     /* "0.47 ac" */
+.specs span:nth-child(4) { min-width: 4ch; }     /* "1949" */
+.specs span:nth-child(5) { min-width: 4.5ch; }   /* "27 yr" — sums to ~298px at 375, one line */
+.tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tag {
+  font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 5px;
+  background: var(--well); color: var(--ink-2);
+  user-select: none;
+}
+.tag.warn { background: var(--warn-tint); color: var(--warn-fg); }
+.tag.tier-in { background: var(--good-tint); color: var(--good-fg); }
+.tag.listed { background: var(--accent-tint); color: var(--accent-strong); }
+.tag.other-eval { background: transparent; box-shadow: inset 0 0 0 1px var(--line-strong); }
+.street-line, .hist-line { margin: 8px 0 0; font-size: 0.8125rem; color: var(--ink-3); }
+.street-line b { font-weight: 500; color: var(--ink-2); }
+.card-foot {
+  display: flex; align-items: center; gap: 4px;
+  margin-top: 10px; padding-top: 8px;
+  border-top: var(--border-hairline) solid var(--line);
+}
+.card-foot .links { display: flex; margin-right: auto; margin-left: -10px; }
+.card-foot .links a {
+  font-size: 0.875rem; font-weight: 500; text-decoration: none;
+  display: inline-flex; align-items: center;
+  min-height: 44px; padding-inline: 10px;
+  border-radius: var(--r-ctl);
+}
+@media (hover: hover) and (pointer: fine) {
+  .card-foot .links a:hover { background: var(--accent-tint); text-decoration: underline; }
+}
+.eval-open {
+  min-height: 44px; padding-inline: 16px;
+  border-radius: var(--r-ctl);
+  background: var(--accent); color: var(--accent-ink);
+  font-size: 0.9375rem; font-weight: 600;
+  transition: background-color 150ms ease, transform 100ms ease;
+}
+.eval-open:active { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) {
+  .eval-open:hover { background: var(--accent-hover); }
+}
+.eval-open.reopen { background: transparent; color: var(--accent-strong); box-shadow: inset 0 0 0 1px var(--line-strong); }
+@media (hover: hover) and (pointer: fine) {
+  .eval-open.reopen:hover { background: var(--accent-tint); }
+}
+.done-verdict { font-size: 0.8125rem; color: var(--ink-2); margin-top: 4px; }
+
+/* ---------- eval form ---------- */
+.eval-form {
+  margin-top: 12px;
+  background: var(--well);
+  border-radius: var(--r-well);
+  padding: 14px;
+}
+.eval-form:focus { outline: none; }
+.form-title { display: flex; align-items: center; margin-bottom: 8px; }
+.form-title h4 { margin: 0; font-size: 0.875rem; font-weight: 600; color: var(--ink-2); }
+.form-close {
+  margin-left: auto; min-width: 44px; min-height: 44px;
+  margin-block: -10px; margin-right: -10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--ink-3); border-radius: var(--r-ctl);
+}
+@media (hover: hover) and (pointer: fine) {
+  .form-close:hover { color: var(--ink); background: var(--card); }
+}
+.field { margin-top: 12px; }
+.field > .flabel {
+  display: block;
+  font-size: 0.8125rem; font-weight: 600; color: var(--ink-2);
+  margin-bottom: 6px;
+}
+.hurdles { display: grid; gap: 6px; }
+.hurdle {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 48px; padding-inline: 12px;
+  background: var(--card);
+  border-radius: var(--r-ctl);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 0.9375rem;
+  text-align: left;
+  transition: box-shadow 150ms ease, background-color 100ms ease;
+}
+.hurdle .hname { margin-right: auto; }
+.hurdle .hstate {
+  flex: none; width: 84px; text-align: center;
+  font-size: 0.8125rem; font-weight: 600;
+  padding-block: 4px; border-radius: 6px;
+  color: var(--ink-3);
+}
+.hurdle[data-state="pass"] .hstate { background: var(--good-tint); color: var(--good-fg); }
+.hurdle[data-state="fail"] .hstate { background: var(--bad-tint); color: var(--bad-fg); }
+/* Press on a hurdle row: felt, not seen. A 2% scale on a screen-wide row moves
+   both edges ~3px and the right-aligned state slot rides along — Luke: "a
+   blinking effect" while cycling. The state change is the response; press is a
+   tint only (2026-09-11). */
+@media (hover: none) and (pointer: coarse) {   /* touch only: under a mouse the click + state change are the feedback; a tint just flashes (Luke, desktop) */
+  .hurdle:active { background: var(--well); }
+}
+.choices { display: grid; gap: 6px; }
+.choices.cols-2 { grid-template-columns: 1fr 1fr; }
+.choice {
+  min-height: 48px; padding: 8px 12px;
+  background: var(--card);
+  border-radius: var(--r-ctl);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 0.9375rem; font-weight: 500;
+  text-align: center;
+  transition: box-shadow 150ms ease, background-color 150ms ease, color 150ms ease, transform 100ms ease;
+}
+.choice[aria-checked="true"], .choice[aria-pressed="true"] {
+  background: var(--accent-tint);
+  color: var(--accent-strong);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.choice:active { transform: scale(0.97); }   /* compact chip */
+.axes { display: flex; flex-wrap: wrap; gap: 6px; }
+.axes .choice { min-height: 44px; flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.axes .ord {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--accent); color: var(--accent-ink);
+  font-size: 0.6875rem; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+textarea {
+  width: 100%;
+  font: inherit;                 /* 16px: no iOS zoom */
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  padding: 10px 12px;
+  min-height: 88px;
+  resize: vertical;
+}
+textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-tint); }
+.fhint { font-size: 0.75rem; color: var(--ink-3); margin-top: 4px; }
+.save-row { margin-top: 14px; }
+.save-btn {
+  width: 100%;
+  min-height: 48px;
+  border-radius: var(--r-ctl);
+  background: var(--accent); color: var(--accent-ink);
+  font-size: 1rem; font-weight: 600;
+  transition: background-color 150ms ease, transform 100ms ease;
+}
+.save-btn:active { transform: scale(0.98); }
+@media (hover: hover) and (pointer: fine) {
+  .save-btn:not(:disabled):hover { background: var(--accent-hover); }
+}
+.save-btn:disabled { background: var(--well); color: var(--ink-disabled); box-shadow: inset 0 0 0 1px var(--line); cursor: default; }
+.save-err {
+  margin-top: 8px; padding: 8px 12px;
+  background: var(--bad-tint); color: var(--bad-fg);
+  border-radius: var(--r-ctl);
+  font-size: 0.875rem;
+  display: flex; align-items: center; gap: 6px;
+}
+
+/* ---------- done / empty / skeleton ---------- */
+.done { margin-top: 8px; }
+.done summary {
+  list-style: none; cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+  min-height: 48px;
+  font-size: 0.9375rem; font-weight: 600; color: var(--ink-2);
+  user-select: none;
+}
+.done summary::-webkit-details-marker { display: none; }
+.done summary .arrow { transition: transform 150ms ease; color: var(--ink-3); }
+.done[open] summary .arrow { transform: rotate(90deg); }
+.empty {
+  padding: 40px 24px; text-align: center;
+  color: var(--ink-2); font-size: 0.9375rem;
+}
+.empty .big { font-size: 1.0625rem; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+.empty button { color: var(--accent-strong); font-weight: 500; min-height: 44px; padding-inline: 12px; }
+.skel { border-radius: var(--r-card); background: var(--card); box-shadow: var(--shadow-card); height: 230px; padding: 16px; }
+.skel div { background: var(--well); border-radius: 6px; }
+.load-err { text-align: center; padding: 40px 24px; color: var(--ink-2); }
+.load-err button {
+  margin-top: 12px; min-height: 44px; padding-inline: 20px;
+  background: var(--accent); color: var(--accent-ink);
+  border-radius: var(--r-ctl); font-weight: 600;
+}
+
+/* ---------- full screens (profile gate / key setup) ---------- */
+.screen {
+  position: fixed; inset: 0; z-index: var(--z-screen);
+  background: var(--bg);
+  display: grid; place-items: center;
+  padding: 24px;
+}
+.screen-inner { width: 100%; max-width: 360px; text-align: center; }
+.screen h2 { font-size: 1.375rem; font-weight: 650; margin: 0 0 4px; text-wrap: balance; }
+.screen p { color: var(--ink-2); font-size: 0.9375rem; margin: 0 0 24px; }
+.screen .big-btns { display: grid; gap: 10px; }
+.big-btn {
+  min-height: 56px;
+  background: var(--card);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+  font-size: 1.0625rem; font-weight: 600;
+  transition: transform 100ms ease, background-color 150ms ease;
+}
+.big-btn:active { transform: scale(0.98); }
+@media (hover: hover) and (pointer: fine) {
+  .big-btn:hover { background: var(--accent-tint); color: var(--accent-strong); }
+}
+.screen .minor { margin-top: 16px; color: var(--ink-3); font-size: 0.875rem; min-height: 44px; padding-inline: 12px; }
+.key-form { text-align: left; }
+.key-form label { display: block; font-size: 0.8125rem; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
+.key-form input {
+  width: 100%; font-size: 1rem; color: var(--ink);
+  background: var(--card); border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl); padding: 10px 12px; min-height: 44px;
+}
+.key-form input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-tint); }
+.key-form .save-btn { margin-top: 12px; }
+
+/* ---------- banner / toast / footer ---------- */
+.demo-banner {
+  background: var(--warn-tint); color: var(--warn-fg);
+  font-size: 0.8125rem; font-weight: 500;
+  text-align: center; padding: 6px 16px;
+}
+.toast {
+  position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  background: var(--ink); color: var(--bg);
+  font-size: 0.875rem; font-weight: 500;
+  padding: 10px 16px; border-radius: 10px;
+  box-shadow: 0 4px 16px oklch(0 0 0 / 0.2);
+  max-width: calc(100vw - 32px);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.toast.show { opacity: 1; }
+.toast.err { background: var(--bad-fg); color: oklch(0.99 0 0); }
+footer {
+  margin-top: 24px;
+  font-size: 0.75rem; color: var(--ink-3);
+  line-height: 1.6;
+}
 </style>
 </head>
 <body>
-<div id="app"></div>
-<script>
-"use strict";
-// ---- config (placeholders substituted by app/deploy.py at upload time) ----
-const SUPABASE_URL = "https://ivqotvufsdiultnhbdxc.supabase.co";
-const BAKED_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2cW90dnVmc2RpdWx0bmhiZHhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5MDkyODksImV4cCI6MjA5NjQ4NTI4OX0.kgYnKuk6IekYJY66sLyddFk2IddWzBeR5W5VccxbZgM";           // anon (publishable) key ONLY — never the service key
-const CEILING = Number("1300000") || 1300000;
-const TENURE_YEARS = 15;
-const TOWNS = ["Wenham", "Hamilton", "Beverly"];
-const ZIPS = { Wenham: "01984", Hamilton: "01982", Beverly: "01915" };
-// Per-town watchlist predicate differences (Beverly ratification 2026-09-04,
-// house-hunt-beverly-spike.md): Wenham/Hamilton are whole-town in-target;
-// Beverly is carved (in_target_area = ratified zones) and its colonial-family
-// style set includes 'Dutch Col', which ilike *COLONIAL* alone misses.
-// Beverly rows have NULL beds/baths until the assessor-card enrichment runs.
-const TOWN_PREDICATE = t => t === "Beverly"
-  ? { in_target_area: "is.true",
-      or: "(building_style.ilike.*COLONIAL*,building_style.eq.Dutch Col)" }
-  : { building_style: "ilike.*COLONIAL*" };
-const DEMO = new URLSearchParams(location.search).get("demo") === "1";
-const PROP_FIELDS = "id,address,year_built,building_style,sqft,lot_size," +
-  "assessed_value,price_estimate,last_sale_date,last_sale_price,on_market," +
-  "bedrooms,bathrooms,road_fclass,road_aadt,neighborhood";
-// data-backed category tags — INFORMATIVE ONLY, never filters (Luke's rule,
-// 2026-08-31). Thresholds ratified against the calibration set.
-const SMALL_LOT_SF = Math.round(0.30 * 43560);   // parcel-level: small lot
-const HIGH_BULK_FAR = 0.18;                      // street-level: high bulk
-
-// ---- theme: manual override persists; absent = follow system ----
-// (this runs during parse, before first paint — no wrong-theme flash)
-{
-  const t = localStorage.getItem("hh_theme");
-  if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
-}
-const themeMQ = matchMedia("(prefers-color-scheme: dark)");
-const currentTheme = () =>
-  document.documentElement.dataset.theme || (themeMQ.matches ? "dark" : "light");
-const SUN_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-  stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-  stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/>
-  <path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>`;
-const MOON_ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-  stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-  stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>`;
-
-// the ONE drawn icon set (iconography, 2026-09-04): shared metrics with the
-// theme icons — 1.8 stroke, round caps, currentColor. Inline marks render
-// at 16 (12 inside tags/hints); decorative always (labels carry meaning).
-const ICON_PATHS = {
-  check: "M3 8.5l3.5 3.5L13 5",
-  x: "M4 4l8 8M12 4L4 12",
-  up: "M8 13V3M4 7l4-4 4 4",
-  down: "M8 3v10M4 9l4 4 4-4",
-  chevDown: "M4 6l4 4 4-4",
-  chevRight: "M6 4l4 4-4 4",
-};
-const icon = (name, size = 16) => `<svg width="${size}" height="${size}"
-  viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
-  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON_PATHS[name]}"/></svg>`;
-
-window.toggleTheme = () => {
-  const next = currentTheme() === "dark" ? "light" : "dark";
-  document.documentElement.dataset.theme = next;
-  localStorage.setItem("hh_theme", next);
-  syncThemeBtn();
-};
-
-function syncThemeBtn() {
-  const b = document.getElementById("themebtn");
-  if (!b) return;
-  const cur = currentTheme();   // icon shows the ACTIVE theme; label = action
-  b.innerHTML = cur === "dark" ? MOON_ICON : SUN_ICON;
-  b.setAttribute("aria-label",
-    cur === "dark" ? "Switch to light theme" : "Switch to dark theme");
-}
-themeMQ.addEventListener("change", syncThemeBtn);   // system change, no override
-
-const $app = document.getElementById("app");
-const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const plural = n => n === 1 ? "" : "s";
-
-function anonKey() {
-  if (!BAKED_KEY.startsWith("__")) return BAKED_KEY;
-  return localStorage.getItem("hh_anon_key") || null;
-}
-
-async function api(path, params, opts = {}) {
-  const qs = new URLSearchParams(params).toString();
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}${qs ? "?" + qs : ""}`, {
-    method: opts.method || "GET",
-    headers: Object.assign({
-      apikey: anonKey(), Authorization: `Bearer ${anonKey()}`,
-      "Content-Type": "application/json",
-    }, opts.headers || {}),
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
-  });
-  if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
-  return opts.raw ? r : r.json();
-}
-
-// errors render as human sentences (voice principles 2026-09-04): what
-// happened + what to do next; if entered work survives, say so; the HTTP
-// status rides in parens as a breadcrumb; raw response bodies never render.
-function friendlyError(e, { retry, keepsWork } = {}) {
-  const kept = keepsWork ? " Nothing you entered is lost." : "";
-  if (e instanceof TypeError)
-    return `Couldn't reach the database — check your connection and ${retry}.${kept}`;
-  const code = String(e.message || "").match(/^(\d{3})/)?.[1];
-  if (code === "401" || code === "403")
-    return `The database refused the app's access key — reload the page; if it keeps happening the key needs re-entering (${code}).`;
-  return `That didn't go through — try again in a moment${code ? ` (${code})` : ""}.${kept}`;
-}
-
-// address -> street name (mirrors the street_metrics view's extraction)
-const streetOf = a =>
-  a.replace(/\s*\(UNIT[^)]*\)$/, "").replace(/^[\d-]+[A-Z]?\s+/, "");
-
-// street_forms vocabulary -> human labels (lowercase; sentence-cased in the
-// filter select). Fallback: raw value.
-const FORM_LABELS = {
-  cul_de_sac: "cul-de-sac", loop: "loop",
-  curved_subdivision: "curved subdivision", grid: "grid",
-  collector: "collector", country_road: "country road",
-  country_dead_end: "country dead-end", private_way: "private way",
-  stub: "short dead-end",
-};
-const formLabel = f => FORM_LABELS[f] || f;
-
-// ---- link construction (mirrors pipeline/watchlist_export.py links_md) ----
-function displayAddr(addr) {
-  const words = { AV: "Ave", WM: "William" };
-  return addr.split(" ").map(w =>
-    words[w] || w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
-}
-function links(addr, town) {
-  const da = displayAddr(addr);
-  const full = `${da}, ${town}, MA ${ZIPS[town]}`;
-  const z = `https://www.zillow.com/homes/${encodeURIComponent(full.replace(/ /g, "-"))}_rb/`;
-  const q = encodeURIComponent(full);
-  return { z,
-    r: `https://www.google.com/search?q=redfin+${q}`,
-    m: `https://www.google.com/maps/place/${q}` };
-}
-
-// ---- who has evaluated what ----
-// marks: DB truth from the eval_marks view (property_id + nominated_by only —
-// verdicts/verbatim stay unreadable to the anon key). localVerdicts: this
-// browser's memory of its own saves, used to enrich tags with the verdict.
-const localVerdicts = JSON.parse(localStorage.getItem("hh_done") || "{}");
-let marks = new Map();          // pid -> Set(names)
-function addMark(pid, name) {
-  if (!marks.has(pid)) marks.set(pid, new Set());
-  marks.get(pid).add(name);
-}
-function recordSave(pid, verdict, name) {
-  (localVerdicts[pid] = localVerdicts[pid] || []).push(
-    { verdict, who: name, at: new Date().toISOString() });
-  localStorage.setItem("hh_done", JSON.stringify(localVerdicts));
-  addMark(pid, name);
-}
-
-let who = localStorage.getItem("hh_who") || "";
-
-// ---- list view state ----
-const view = { mode: "off", town: "All", road: "any", beds: null, form: "any",
-               nhood: "any",   // Beverly-only carve-zone filter (drawer)
-               sort: "est", dir: "asc", yrMin: null, yrMax: null, q: "",
-               showDone: false };
-const SORT_KEYS = {
-  est:      p => p.price_estimate,
-  assessed: p => p.assessed_value,
-  year:     p => p.year_built,
-  sqft:     p => p.sqft,
-  lot:      p => Number(p.lot_size),
-};
-
-// ---- rendering ----
-const HURDLES = [
-  ["main_road", "Main road"], ["curb_appeal", "Curb appeal"],
-  ["lot_size", "Lot size"], ["neighbors", "Neighbors"],
-  ["yard", "Yard"], ["placement", "Placement"],
-];
-const VERDICTS = ["would-offer-now", "would-consider", "pass-on-house", "pass-on-location-only"];
-const GATE_VERDICTS = ["would-consider", "defer", "exclude"];
-const VERDICT_LABELS = {
-  "would-offer-now": "Would offer now",
-  "would-consider": "Would consider",
-  "pass-on-house": "Pass on house",
-  "pass-on-location-only": "Pass on location only",
-  "defer": "Defer",
-  "exclude": "Exclude",
-};
-const formState = {};   // pid -> {verdict, axes: [], hurdles: {}}
-const AXES = ["house", "location", "price", "condition", "none"];
-
-function markTags(pid) {
-  const names = marks.get(pid);
-  if (!names) return "";
-  return [...names].map(n => {
-    const loc = (localVerdicts[pid] || []).filter(d => d.who === n).pop();
-    const v = loc ? ` ${VERDICT_LABELS[loc.verdict] || loc.verdict}` : "";
-    return `<span class="tag done">${icon("check", 12)} ${esc(n)}${esc(v)}</span>`;
-  }).join(" ");
-}
-
-const styleCase = s => String(s || "?").toLowerCase()
-  .replace(/(^|\s)\S/g, c => c.toUpperCase());
-
-function homeCard(p, town, inCut, mode, listPrice) {
-  const tier = p.assessed_value <= inCut ? "in" : "watch";
-  const saleYr = (p.last_sale_date || "").slice(0, 4);
-  const tenure = saleYr ? `${new Date().getFullYear() - +saleYr}y` : "?";
-  const lot = p.lot_size ? (p.lot_size / 43560).toFixed(2) + " ac" : "?";
-  const road = p.road_fclass != null && p.road_fclass <= 6
-    ? `<span class="tag road">MAIN RD${p.road_aadt ? ` · ${Math.round(p.road_aadt / 1000)}k/day` : ""}</span>` : "";
-  const smallLot = p.lot_size && p.lot_size < SMALL_LOT_SF
-    ? `<span class="tag">SMALL LOT</span>` : "";
-  const sm = data.streets[town + "|" + streetOf(p.address)];
-  const streetParts = [];
-  if (sm?.form) streetParts.push(esc(formLabel(sm.form)));
-  if (sm?.median_far != null)
-    streetParts.push(`median FAR ${Number(sm.median_far).toFixed(2)}` +
-      (Number(sm.median_far) >= HIGH_BULK_FAR
-        ? ' <span class="tag">HIGH BULK</span>' : ""));
-  if (sm?.parcel_count) streetParts.push(`${sm.parcel_count} parcels`);
-  if (sm?.median_year_built) streetParts.push(`built ~${sm.median_year_built}`);
-  const streetLine = streetParts.length
-    ? `<div class="fine">Street: ${streetParts.join(" · ")}</div>` : "";
-  const bb = p.bedrooms ? ` · ${p.bedrooms}bd/${Number(p.bathrooms) || "?"}ba` : "";
-  const l = links(p.address, town);
-  const sold = p.last_sale_price > 1000
-    ? ` · sold ${saleYr} for $${p.last_sale_price.toLocaleString()}` : "";
-  const priceRow = mode === "on"
-    ? `<span class="amt">${listPrice ? "$" + listPrice.toLocaleString() : "price TBD"}</span> list`
-    : `<span class="amt">$${p.price_estimate.toLocaleString()}</span> est
-       <span class="tag ${tier}">${tier === "in" ? "in budget" : "borderline"}</span>`;
-  const fine = mode === "on"
-    ? `Est $${(p.price_estimate || 0).toLocaleString()} ·
-       assessed $${p.assessed_value.toLocaleString()}${sold}`
-    : `Assessed $${p.assessed_value.toLocaleString()}${sold}`;
-  return `<div class="card" data-addr="${esc(p.address.toLowerCase())}" data-pid="${p.id}">
-    <div class="addr">${esc(p.address)} ${road} ${smallLot} ${markTags(p.id)}</div>
-    <div class="qual">${esc(styleCase(p.building_style))}${bb}</div>
-    <div class="pricerow">${priceRow}</div>
-    <dl class="stats">
-      <div><dt>Sqft</dt><dd>${(p.sqft || 0).toLocaleString()}</dd></div>
-      <div><dt>Lot</dt><dd>${lot}</dd></div>
-      <div><dt>Built</dt><dd>${p.year_built || "?"}</dd></div>
-      <div><dt>Tenure</dt><dd>${tenure}</dd></div>
-    </dl>
-    <div class="fine">${fine}</div>
-    ${streetLine}
-    <div class="row2">
-      <span class="links"><a href="${l.z}" target="_blank" rel="noopener">Zillow</a>
-        <a href="${l.r}" target="_blank" rel="noopener">Redfin</a>
-        <a href="${l.m}" target="_blank" rel="noopener">Map</a></span>
-      <button class="evalbtn" onclick="toggleForm(${p.id}, this, '${mode}')">Evaluate</button>
+<div id="demo-banner" class="demo-banner" hidden>Demo data — saving is disabled</div>
+<div class="wrap">
+  <div class="brand-row">
+    <span class="brand">House hunt</span>
+    <button class="chip-btn" id="profile-btn" aria-label="Switch evaluator" hidden>
+      <span class="avatar" id="profile-avatar"></span><span id="profile-name"></span>
+    </button>
+    <button class="chip-btn" id="theme-btn" aria-label="Switch theme" style="min-width:44px;justify-content:center">
+      <svg id="icon-moon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.5 9.5A6 6 0 0 1 6.5 2.5a6 6 0 1 0 7 7Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      <svg id="icon-sun" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" hidden><circle cx="8" cy="8" r="3.25" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v1.75M8 12.75v1.75M1.5 8h1.75M12.75 8h1.75M3.4 3.4l1.24 1.24M11.36 11.36l1.24 1.24M12.6 3.4l-1.24 1.24M4.64 11.36 3.4 12.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+</div>
+<div class="tabs-bar">
+  <div class="wrap">
+    <div class="tabs" role="tablist" aria-label="Listing state">
+      <button class="tab" id="tab-off" role="tab" aria-selected="true" aria-controls="list">
+        Off market<span class="count num" id="count-off"></span>
+      </button>
+      <button class="tab" id="tab-on" role="tab" aria-selected="false" aria-controls="list">
+        On market<span class="count num" id="count-on"></span>
+      </button>
     </div>
-    <div class="formslot"></div>
-  </div>`;
+  </div>
+</div>
+<div class="wrap content">
+  <div class="filters" id="filters" hidden>
+    <div class="search-row">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="m10.5 10.5 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <input type="search" id="f-search" placeholder="Filter by street" aria-label="Filter by street name" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="select-row">
+      <select id="f-town" aria-label="Town filter">
+        <option value="">All towns</option>
+        <option>Wenham</option>
+        <option>Hamilton</option>
+        <option>Beverly</option>
+      </select>
+      <select id="f-nhood" aria-label="Beverly neighborhood filter" hidden>
+        <option value="">All neighborhoods</option>
+      </select>
+      <select id="f-road" aria-label="Road filter">
+        <option value="">Any road</option>
+        <option value="res">Residential</option>
+        <option value="main">Main road</option>
+      </select>
+      <select id="f-form" aria-label="Street form filter">
+        <option value="">Any street form</option>
+      </select>
+      <select id="f-beds" aria-label="Minimum bedrooms filter">
+        <option value="">Any beds</option>
+        <option value="3">3+ beds</option>
+        <option value="4">4+ beds</option>
+        <option value="5">5+ beds</option>
+      </select>
+      <select id="f-year" aria-label="Year built filter">
+        <option value="">Any year</option>
+        <option value="1900">Built 1900+</option>
+        <option value="1940">Built 1940+</option>
+        <option value="1970">Built 1970+</option>
+        <option value="1990">Built 1990+</option>
+      </select>
+      <select id="f-sort" aria-label="Sort order">
+        <option value="price-asc">Price: low to high</option>
+        <option value="price-desc">Price: high to low</option>
+        <option value="lot-desc">Largest lot</option>
+        <option value="tenure-desc">Longest tenure</option>
+        <option value="year-asc">Oldest first</option>
+      </select>
+    </div>
+    <div class="filter-summary" id="filter-summary" hidden></div>
+  </div>
+  <main id="list" class="list"></main>
+  <details class="done" id="done">
+    <summary>
+      <svg class="arrow" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="m5 3 4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span id="done-label">Done</span>
+    </summary>
+    <div id="done-list" class="list"></div>
+  </details>
+  <footer id="foot"></footer>
+</div>
+<div class="toast num" id="toast" role="status"></div>
+<div class="screen" id="gate" hidden>
+  <div class="screen-inner">
+    <h2>Who&rsquo;s evaluating?</h2>
+    <p>Saves are recorded in your name and clear homes from your queue.</p>
+    <div class="big-btns">
+      <button class="big-btn" data-profile="Luke">Luke</button>
+      <button class="big-btn" data-profile="Michelle">Michelle</button>
+    </div>
+    <button class="minor" id="gate-cancel" hidden>Cancel</button>
+  </div>
+</div>
+<div class="screen" id="key-screen" hidden>
+  <div class="screen-inner key-form">
+    <h2>Connect to the database</h2>
+    <p>This build has no baked key. Paste the Supabase anon key (the public one behind RLS) to load the watchlist, or open <a href="?demo=1">demo mode</a>.</p>
+    <form id="key-form">
+      <label for="key-input">Supabase anon key</label>
+      <input id="key-input" type="text" autocomplete="off" spellcheck="false" data-lpignore="true" data-1p-ignore>
+      <button class="save-btn" type="submit">Load watchlist</button>
+    </form>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ================= config ================= */
+const SUPA_URL = 'https://ivqotvufsdiultnhbdxc.supabase.co';
+const BAKED_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2cW90dnVmc2RpdWx0bmhiZHhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5MDkyODksImV4cCI6MjA5NjQ4NTI4OX0.kgYnKuk6IekYJY66sLyddFk2IddWzBeR5W5VccxbZgM';
+const BAKED_CEILING = '1300000';
+const DEMO = new URLSearchParams(location.search).has('demo');
+// ?as=Luke|Michelle — act as a profile for this page load without touching
+// localStorage (the deploy probe uses it); ?probe=1 — write a JSON summary of
+// the rendered list into #probe-summary after every render (see probe.py).
+const AS = new URLSearchParams(location.search).get('as');
+const PROBE = new URLSearchParams(location.search).has('probe');
+if (PROBE) window.addEventListener('error', e => (window.__probeErrors ||= []).push(String(e.message)));
+const TOWNS = ['Wenham', 'Hamilton', 'Beverly'];
+// Per-town watchlist predicate (2026-09-04 Beverly ratification,
+// house-hunt-beverly-spike.md): Wenham/Hamilton are whole-town in-target;
+// Beverly is carved (in_target_area = the four ratified zones) and its
+// colonial-family style set includes 'Dutch Col', which ilike *COLONIAL*
+// alone would miss. Same clauses as pipeline/watchlist_export.py.
+const TOWN_PREDICATE = t => t === 'Beverly'
+  ? { in_target_area: 'is.true', or: '(building_style.ilike.*COLONIAL*,building_style.eq.Dutch Col)' }
+  : { building_style: 'ilike.*COLONIAL*' };
+const ZIPS = { Wenham: '01984', Hamilton: '01982', Beverly: '01915' };
+const TENURE_YEARS = 15;
+const HURDLES = [
+  ['main_road',   'Main road'],
+  ['curb_appeal', 'Curb appeal'],
+  ['lot_size',    'Lot size'],
+  ['neighbors',   'Neighbors'],
+  ['yard',        'Yard'],
+  ['placement',   'Placement'],
+];
+const GATE_VERDICTS = [
+  ['would-consider', 'Would consider'],
+  ['defer',          'Defer'],
+  ['exclude',        'Exclude'],
+];
+const LISTING_VERDICTS = [
+  ['would-offer-now',       'Would offer now'],
+  ['would-consider',        'Would consider'],
+  ['pass-on-house',         'Pass on house'],
+  ['pass-on-location-only', 'Pass on location only'],
+];
+const AXES = ['house', 'location', 'price', 'condition', 'none'];
+const AXIS_LABEL = { house: 'House', location: 'Location', price: 'Price', condition: 'Condition', none: 'None' };
+const FORM_LABELS = {
+  cul_de_sac: 'cul-de-sac', stub: 'stub', country_dead_end: 'country dead end',
+  loop: 'loop', curved_subdivision: 'curved subdivision', grid: 'grid',
+  collector: 'collector', country_road: 'country road', private_way: 'private way',
+};
+
+const unbaked = s => /^__/.test(s);
+function anonKey() {
+  if (!unbaked(BAKED_KEY)) return BAKED_KEY;
+  return localStorage.getItem('hh2-anon-key') || '';
+}
+function ceiling() {
+  if (!unbaked(BAKED_CEILING)) return parseInt(BAKED_CEILING, 10);
+  return null; // live mode without a baked ceiling is refused in load()
 }
 
-window.toggleForm = (pid, btn, mode) => {
-  const slot = btn.closest(".card").querySelector(".formslot");
-  if (slot.innerHTML) { slot.innerHTML = ""; return; }
-  const p = findHome(pid);
-  const hurdles = {};
-  if (mode === "off" && p && p.road_fclass != null)
-    hurdles.main_road = p.road_fclass <= 6 ? "fail" : "pass";
-  formState[pid] = { verdict: null, axes: [], hurdles };
-  slot.innerHTML = mode === "off" ? gateForm(pid, hurdles) : listingForm(pid);
-  if (mode !== "off" && !("ontouchstart" in window))
-    slot.querySelector("textarea").focus();
+/* ================= state ================= */
+const S = {
+  profile: (['Luke', 'Michelle'].includes(AS) ? AS : null) || localStorage.getItem('hh2-profile') || null,
+  view: 'off',
+  props: [],                 // enriched property rows
+  ratios: {},                // town -> latest ratio row
+  marks: { Luke: new Set(), Michelle: new Set() },
+  streets: new Map(),        // "town|STREET" -> street_metrics row
+  forms: new Map(),          // "town|STREET" -> street_forms row
+  priceEvents: new Map(),    // property_id -> {listPrice, listedOn, prevPrice, pending}
+  ceiling: null,
+  exiting: 0,                // saved-card exits in flight; render() waits for the last
+  reenter: new Set(),        // ids whose failed save should animate back in on next render
+  open: new Set(),           // property ids with an open form
+  drafts: new Map(),         // property_id -> draft
+  saveErrs: new Map(),       // property_id -> message
+  localVerdicts: JSON.parse(localStorage.getItem('hh2-verdicts') || '{}'),
+  filters: { search: '', town: '', road: '', form: '', beds: '', year: '', nhood: '', sort: 'price-asc' },
+  pendingSaves: 0,
+  loaded: false,
 };
 
-function gateForm(pid, hurdles) {
-  return `<form onsubmit="return saveEval(event, ${pid}, 'off')" onkeydown="formEsc(event)">
-    <div class="grp"><span class="lbl" id="hlbl-${pid}">Hurdles</span>
-      <span class="hint">Tap once ${icon("check", 12)} cleared, again ${icon("x", 12)} failed. Main road is pre-filled from MassDOT data.</span>
-      <div class="opts" role="group" aria-labelledby="hlbl-${pid}">
-      ${HURDLES.map(([k, label]) => {
-        const st = hurdles[k] || "";
-        const cls = st === "pass" ? "pass" : st === "fail" ? "fail" : "";
-        const glyph = st === "pass" ? icon("check") : st === "fail" ? icon("x") : "";
-        return `<button type="button" class="${cls}" data-h="${k}"
-          onclick="cycleHurdle(${pid}, '${k}', this)">${label}<span class="glyph">${glyph}</span></button>`;
-      }).join("")}
-    </div></div>
-    <div class="grp"><span class="lbl" id="jlbl-${pid}">Judgment</span>
-      <div class="opts" role="group" aria-labelledby="jlbl-${pid}">
-      ${GATE_VERDICTS.map(v => `<button type="button" onclick="pickVerdict(${pid}, '${v}', this)">${VERDICT_LABELS[v]}</button>`).join("")}
-    </div></div>
-    <div class="grp"><label class="lbl" for="vr-${pid}">Note — optional</label>
-      <textarea id="vr-${pid}" onkeydown="textareaSubmit(event)"
-        placeholder="Anything worth remembering from Street View"></textarea></div>
-    <button class="save" type="submit">Save as ${esc(who)}</button>
-    <div class="err" role="alert"></div>
-  </form>`;
+/* ================= utilities ================= */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const money = n => n == null ? '—'
+  : n >= 995000 ? '$' + (n / 1e6).toFixed(2).replace(/0$/, '').replace(/\.$/, '') + 'M'
+  : '$' + Math.round(n / 1000) + 'K';
+const moneyFull = n => n == null ? '—' : '$' + Math.round(n).toLocaleString('en-US');
+const fmtNum = n => n == null ? '?' : n.toLocaleString('en-US');
+const fmtBa = b => b == null ? '?' : String(+(+b).toFixed(1)).replace(/\.0$/, '');
+const fmtK = n => n == null ? '?' : n >= 1000 ? Math.round(n / 1000) + 'k' : String(n);   // estimates read as estimates (AADT is modelled)
+const acres = sqft => sqft ? sqft / 43560 : null;
+const shortDate = d => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+// Assessor form -> reading form ('186 TOPSFIELD RD' -> '186 Topsfield Rd')
+const ABBR = { AV: 'Ave', WM: 'William' };
+const displayAddr = a => a.split(' ').map(w => ABBR[w] || (w.charAt(0) + w.slice(1).toLowerCase())).join(' ');
+// street key: strip unit token + leading house number (same regexes as street_metrics)
+const streetOf = a => a.replace(/\s*\(UNIT[^)]*\)$/, '').replace(/^[0-9][0-9-]*[A-Z]?\s+/, '');
+const skey = p => p.town + '|' + streetOf(p.address);
+
+function links(p) {
+  const da = displayAddr(p.address);
+  const full = `${da}, ${p.town}, MA ${ZIPS[p.town]}`;
+  const zillow = 'https://www.zillow.com/homes/' + encodeURIComponent(full.replace(/ /g, '-')) + '_rb/';
+  const redfin = 'https://www.google.com/search?q=' + encodeURIComponent('redfin ' + full);
+  const map = 'https://www.google.com/maps/place/' + encodeURIComponent(full);
+  return { zillow, redfin, map };
 }
 
-function listingForm(pid) {
-  return `<form onsubmit="return saveEval(event, ${pid}, 'on')" onkeydown="formEsc(event)">
-    <div class="grp"><span class="lbl" id="vlbl-${pid}">Verdict</span>
-      <div class="opts" role="group" aria-labelledby="vlbl-${pid}">
-      ${VERDICTS.map(v => `<button type="button" onclick="pickVerdict(${pid}, '${v}', this)">${VERDICT_LABELS[v]}</button>`).join("")}
-    </div></div>
-    <div class="grp"><span class="lbl" id="albl-${pid}">Failure axes — tap in order, primary first</span>
-      <div class="opts" role="group" aria-labelledby="albl-${pid}">
-      ${AXES.map(a => `<button type="button" data-axis="${a}" onclick="pickAxis(${pid}, '${a}', this)">${a.charAt(0).toUpperCase() + a.slice(1)}</button>`).join("")}
-    </div></div>
-    <div class="grp"><label class="lbl" for="vr-${pid}">Reasoning — your actual words</label>
-      <textarea id="vr-${pid}" required onkeydown="textareaSubmit(event)"
-        placeholder="Why? Verbatim — this is the asset."></textarea></div>
-    <button class="save" type="submit">Save as ${esc(who)}</button>
-    <div class="err" role="alert"></div>
-  </form>`;
+let toastTimer;
+function toast(msg, isErr) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.toggle('err', !!isErr);
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  const ms = Math.max(2000, msg.split(/\s+/).length * 300) + (isErr ? 1500 : 0);
+  toastTimer = setTimeout(() => t.classList.remove('show'), ms);
 }
 
-window.cycleHurdle = (pid, k, btn) => {
-  const h = formState[pid].hurdles;
-  const next = { undefined: "pass", pass: "fail", fail: undefined }[h[k]];
-  if (next) h[k] = next; else delete h[k];
-  btn.className = next === "pass" ? "pass" : next === "fail" ? "fail" : "";
-  btn.querySelector(".glyph").innerHTML =
-    next === "pass" ? icon("check") : next === "fail" ? icon("x") : "";
-};
-
-window.formEsc = e => {
-  if (e.key === "Escape") e.target.closest(".formslot").innerHTML = "";
-};
-
-window.textareaSubmit = e => {
-  if ((e.metaKey || e.ctrlKey) && e.key === "Enter")
-    e.target.closest("form").requestSubmit();
-};
-
-window.pickVerdict = (pid, v, btn) => {
-  formState[pid].verdict = v;
-  for (const b of btn.parentNode.children) b.classList.toggle("on", b === btn);
-};
-
-window.pickAxis = (pid, a, btn) => {
-  const axes = formState[pid].axes;
-  const i = axes.indexOf(a);
-  i >= 0 ? axes.splice(i, 1) : axes.push(a);
-  for (const b of btn.parentNode.children) {
-    const j = axes.indexOf(b.dataset.axis);
-    b.classList.toggle("on", j >= 0);
-    b.querySelector(".ord")?.remove();
-    if (j >= 0 && axes.length > 1)
-      b.insertAdjacentHTML("beforeend", `<span class="ord">${j + 1}</span>`);
+/* ================= data ================= */
+// PostgREST caps a response at 1000 rows and says nothing — Beverly's 975
+// streets silently starved Wenham/Hamilton of street metrics (2026-09-11).
+// So every query pages until a short page comes back. Callers pass a stable
+// `order` so pages don't overlap.
+const PAGE = 1000;
+async function api(path, params) {
+  const key = anonKey();
+  const out = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const url = `${SUPA_URL}/rest/v1/${path}?` + new URLSearchParams({ ...params, limit: PAGE, offset });
+    const r = await fetch(url, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+    if (!r.ok) throw new Error(`${path} → HTTP ${r.status}`);
+    const page = await r.json();
+    out.push(...page);
+    if (page.length < PAGE) return out;
   }
-};
+}
 
-// save-card exit (brief 2026-09-03, unified per Luke's live feel check):
-// ONE gesture — the card fades/recedes (150ms) while its gap closes
-// (300ms), all from t=0 on the same curve; renderList() lands invisibly
-// after. Sequential phases read as two events with a flash between them.
-// Since the list spaces via flex gap (Q7), the dying card animates
-// margin-bottom to -1 gap to consume its own slot — a transient animation
-// value, not a layout nudge — so the queue closes exactly flush.
-// Exit rules per DESIGN.md: never blocks input; hard fallback timer (a
-// display:none'd card or backgrounded tab never fires transitionend);
-// reduced motion skips straight to the end state.
-function exitCard(card) {
-  let done = false;
-  const finish = () => { if (!done) { done = true; renderList(); } };
-  if (!card || matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    finish(); return;
+function tenureCutoff() {
+  const d = new Date();
+  d.setDate(d.getDate() - Math.round(TENURE_YEARS * 365.25));
+  return d.toISOString().slice(0, 10);
+}
+
+async function loadLive() {
+  const CEIL = ceiling();
+  if (CEIL == null) throw new Error('No budget ceiling in this build — deploy bakes it, or use ?demo=1 locally.');
+  S.ceiling = CEIL;
+
+  const [ratios, sold, marks, metrics, forms, props] = await Promise.all([
+    api('town_price_ratios', {
+      town: `in.(${TOWNS})`, order: 'computed_at.desc',
+      select: 'town,r_median,r_p75,n,computed_at',
+    }),
+    api('listing_events', { event: 'eq.sold', select: 'property_id', order: 'property_id' }),
+    api('eval_marks', { select: 'property_id,nominated_by', order: 'property_id' }),
+    api('street_metrics', {
+      town: `in.(${TOWNS})`, order: 'town,street',
+      select: 'town,street,parcel_count,median_lot_sqft,median_far,far_p90,median_year_built',
+    }),
+    api('street_forms', { town: `in.(${TOWNS})`, order: 'town,street', select: 'town,street,form,terminus,length_m' }),
+    Promise.all(TOWNS.map(t => api('properties', {
+      town: `eq.${t}`,
+      ...TOWN_PREDICATE(t),
+      sqft: 'gte.1800',
+      last_sale_price: 'gt.100000',
+      last_sale_date: `lt.${tenureCutoff()}`,
+      price_estimate: `lte.${CEIL}`,
+      order: 'price_estimate.asc,id',
+      select: 'id,address,town,neighborhood,year_built,sqft,bedrooms,bathrooms,building_style,lot_size,' +
+              'assessed_value,price_estimate,last_sale_date,last_sale_price,on_market,road_fclass,road_aadt',
+    }))).then(byTown => byTown.flat()),
+  ]);
+
+  const soldIds = new Set(sold.map(r => r.property_id));
+  const kept = props.filter(p => !soldIds.has(p.id));
+
+  const onIds = kept.filter(p => p.on_market === true).map(p => p.id);
+  let events = [];
+  if (onIds.length) {
+    events = await api('listing_events', {
+      property_id: `in.(${onIds})`,
+      order: 'observed_on.asc,property_id',
+      select: 'property_id,event,list_price,observed_on',
+    });
   }
-  card.style.height = card.offsetHeight + "px";  // pin, then collapse
-  card.style.overflow = "hidden";
-  void card.offsetHeight;   // flush: the pin must be the computed 'from'
-  card.style.transition = "opacity 150ms var(--ease-exit)," +
-    " transform 150ms var(--ease-exit), height 300ms var(--ease-exit)," +
-    " margin-bottom 300ms var(--ease-exit)," +
-    " padding-top 300ms var(--ease-exit), padding-bottom 300ms var(--ease-exit)";
-  card.style.opacity = "0";
-  card.style.transform = "scale(0.98)";
-  card.style.height = "0";
-  card.style.marginBottom = "calc(-1 * var(--sp-3))";   // eat this slot's gap
-  card.style.paddingTop = "0";
-  card.style.paddingBottom = "0";
-  // only the longest transition (height) may finish the exit
-  card.addEventListener("transitionend", e => {
-    if (e.target === card && e.propertyName === "height") finish();
+  ingest(kept, ratios, marks, metrics, forms, events);
+}
+
+function ingest(props, ratios, marks, metrics, forms, events) {
+  S.ratios = {};
+  for (const r of ratios) if (!S.ratios[r.town]) S.ratios[r.town] = r; // first seen = latest
+  S.marks = { Luke: new Set(), Michelle: new Set() };
+  for (const m of marks) S.marks[m.nominated_by]?.add(m.property_id);
+  S.streets = new Map(metrics.map(m => [m.town + '|' + m.street, m]));
+  S.forms = new Map(forms.map(f => [f.town + '|' + f.street, f]));
+
+  S.priceEvents = new Map();
+  for (const e of events) { // ordered asc: later rows overwrite
+    const cur = S.priceEvents.get(e.property_id) || {};
+    if (e.event === 'listed') Object.assign(cur, { listPrice: e.list_price, listedOn: e.observed_on, prevPrice: null, pending: false });
+    else if (e.event === 'price_change') Object.assign(cur, { prevPrice: cur.listPrice ?? null, listPrice: e.list_price ?? cur.listPrice });
+    else if (e.event === 'pending') cur.pending = true;
+    S.priceEvents.set(e.property_id, cur);
+  }
+  S.props = props;
+  S.loaded = true;
+}
+
+/* ================= demo fixture ================= */
+// Canned rows for layout work (?demo=1) — fictional homes shaped like the real
+// watchlist; the $ figures below are demo content, not pricing rules.
+function loadDemo() {
+  const P = (id, town, address, o) => Object.assign({
+    id, town, address, building_style: 'COLONIAL', on_market: null,
+    road_fclass: 7, road_aadt: null, neighborhood: null,
+  }, o);
+  const props = [
+    P(1, 'Wenham', '186 TOPSFIELD RD', { year_built: 1948, sqft: 2450, bedrooms: 4, bathrooms: 2.5, lot_size: 44431, assessed_value: 745000, price_estimate: 879100, last_sale_date: '1998-06-12', last_sale_price: 385000, road_fclass: 3, road_aadt: 11200 }),
+    P(2, 'Wenham', '14 CHERRY ST', { year_built: 1955, sqft: 1980, bedrooms: 3, bathrooms: 2, lot_size: 12197, assessed_value: 598000, price_estimate: 705640, last_sale_date: '2002-09-30', last_sale_price: 411000, road_fclass: 5, road_aadt: 6800 }),
+    P(3, 'Wenham', '8 LARCH ROW', { year_built: 1965, sqft: 2850, bedrooms: 4, bathrooms: 3, lot_size: 78408, assessed_value: 892000, price_estimate: 1052560, last_sale_date: '1995-04-02', last_sale_price: 322000 }),
+    P(4, 'Wenham', '22 ARBOR ST', { year_built: 1972, sqft: 2100, bedrooms: 3, bathrooms: 2, lot_size: 18295, assessed_value: 655000, price_estimate: 772900, last_sale_date: '2008-11-21', last_sale_price: 540000 }),
+    P(5, 'Wenham', '31 WALNUT RD', { year_built: 1961, sqft: 1890, bedrooms: 3, bathrooms: 2, lot_size: 9583, assessed_value: 512000, price_estimate: 604160, last_sale_date: '2010-05-14', last_sale_price: 480000 }),
+    P(6, 'Hamilton', '44 MOULTON ST', { year_built: 1938, sqft: 2300, bedrooms: 4, bathrooms: 2, lot_size: 15246, assessed_value: 701000, price_estimate: 806150, last_sale_date: '2001-08-03', last_sale_price: 389000 }),
+    P(7, 'Hamilton', '12 SAGAMORE FARM RD', { year_built: 1988, sqft: 3100, bedrooms: 5, bathrooms: 3, lot_size: 104544, assessed_value: 1090000, price_estimate: 1253500, last_sale_date: '2005-06-30', last_sale_price: 745000 }),
+    P(8, 'Hamilton', '596 BAY RD', { year_built: 1910, sqft: 2600, bedrooms: 4, bathrooms: 2, lot_size: 26136, assessed_value: 640000, price_estimate: 736000, last_sale_date: '1999-03-19', last_sale_price: 300000, road_fclass: 2, road_aadt: 14800 }),
+    P(9, 'Hamilton', '9 BLUEBERRY LN', { year_built: 1968, sqft: 2250, bedrooms: 4, bathrooms: 2, lot_size: 21780, assessed_value: 830000, price_estimate: 954500, last_sale_date: '2003-10-08', last_sale_price: 462000, on_market: true }),
+    P(10, 'Wenham', '77 MAIN ST', { year_built: 1900, sqft: 2050, bedrooms: 3, bathrooms: 2, lot_size: 13068, assessed_value: 720000, price_estimate: 849600, last_sale_date: '1988-07-25', last_sale_price: 190000, on_market: true, road_fclass: 4, road_aadt: 9200 }),
+    P(11, 'Beverly', '31 HASKELL ST', { neighborhood: 'Beverly Farms', year_built: 1958, sqft: 2150, bedrooms: 4, bathrooms: 2, lot_size: 20473, assessed_value: 812000, price_estimate: 899700, last_sale_date: '2004-05-17', last_sale_price: 520000 }),
+    P(12, 'Beverly', '8 PRIDES HILL RD', { neighborhood: 'Prides Crossing', year_built: 1971, sqft: 2600, bedrooms: null, bathrooms: null, lot_size: 43560, assessed_value: 960000, price_estimate: 1063700, last_sale_date: '1996-09-09', last_sale_price: 340000 }),
+    P(13, 'Beverly', '120 ESSEX ST', { neighborhood: 'Centerville', year_built: 1985, sqft: 1900, bedrooms: 3, bathrooms: 2.5, lot_size: 11761, assessed_value: 640000, price_estimate: 709100, last_sale_date: '2007-02-28', last_sale_price: 455000, road_fclass: 3, road_aadt: 12400 }),
+  ];
+  const ratios = [
+    { town: 'Wenham', r_median: 1.18, r_p75: 1.26, n: 38, computed_at: '2026-07-30T00:00:00Z' },
+    { town: 'Hamilton', r_median: 1.15, r_p75: 1.22, n: 61, computed_at: '2026-07-30T00:00:00Z' },
+    { town: 'Beverly', r_median: 1.108, r_p75: 1.1794, n: 188, computed_at: '2026-09-05T00:00:00Z' },
+  ];
+  const marks = [
+    { property_id: 4, nominated_by: 'Michelle' },
+    { property_id: 6, nominated_by: 'Luke' },
+  ];
+  const M = (town, street, o) => Object.assign({ town, street }, o);
+  const metrics = [
+    M('Wenham', 'TOPSFIELD RD', { parcel_count: 28, median_lot_sqft: 47916, median_far: 0.06, far_p90: 0.1, median_year_built: 1952 }),
+    M('Wenham', 'CHERRY ST', { parcel_count: 22, median_lot_sqft: 13068, median_far: 0.17, far_p90: 0.22, median_year_built: 1958 }),
+    M('Wenham', 'LARCH ROW', { parcel_count: 14, median_lot_sqft: 91476, median_far: 0.04, far_p90: 0.07, median_year_built: 1961 }),
+    M('Wenham', 'ARBOR ST', { parcel_count: 18, median_lot_sqft: 17424, median_far: 0.13, far_p90: 0.18, median_year_built: 1970 }),
+    M('Wenham', 'WALNUT RD', { parcel_count: 26, median_lot_sqft: 10019, median_far: 0.21, far_p90: 0.27, median_year_built: 1962 }),
+    M('Wenham', 'MAIN ST', { parcel_count: 41, median_lot_sqft: 14810, median_far: 0.15, far_p90: 0.2, median_year_built: 1921 }),
+    M('Hamilton', 'MOULTON ST', { parcel_count: 33, median_lot_sqft: 14810, median_far: 0.14, far_p90: 0.19, median_year_built: 1940 }),
+    M('Hamilton', 'SAGAMORE FARM RD', { parcel_count: 11, median_lot_sqft: 108900, median_far: 0.03, far_p90: 0.05, median_year_built: 1986 }),
+    M('Hamilton', 'BAY RD', { parcel_count: 88, median_lot_sqft: 21780, median_far: 0.1, far_p90: 0.16, median_year_built: 1918 }),
+    M('Hamilton', 'BLUEBERRY LN', { parcel_count: 16, median_lot_sqft: 20038, median_far: 0.11, far_p90: 0.15, median_year_built: 1969 }),
+    M('Beverly', 'HASKELL ST', { parcel_count: 37, median_lot_sqft: 18295, median_far: 0.12, far_p90: 0.17, median_year_built: 1955 }),
+    M('Beverly', 'PRIDES HILL RD', { parcel_count: 9, median_lot_sqft: 48787, median_far: 0.05, far_p90: 0.08, median_year_built: 1968 }),
+    M('Beverly', 'ESSEX ST', { parcel_count: 142, median_lot_sqft: 10890, median_far: 0.19, far_p90: 0.26, median_year_built: 1948 }),
+  ];
+  const F = (town, street, form) => ({ town, street, form });
+  const forms = [
+    F('Wenham', 'TOPSFIELD RD', 'country_road'), F('Wenham', 'CHERRY ST', 'curved_subdivision'),
+    F('Wenham', 'LARCH ROW', 'country_dead_end'), F('Wenham', 'ARBOR ST', 'cul_de_sac'),
+    F('Wenham', 'WALNUT RD', 'curved_subdivision'), F('Wenham', 'MAIN ST', 'collector'),
+    F('Hamilton', 'MOULTON ST', 'grid'), F('Hamilton', 'SAGAMORE FARM RD', 'loop'),
+    F('Hamilton', 'BAY RD', 'collector'), F('Hamilton', 'BLUEBERRY LN', 'cul_de_sac'),
+  ];
+  const events = [
+    { property_id: 9, event: 'listed', list_price: 1195000, observed_on: '2026-08-21' },
+    { property_id: 9, event: 'price_change', list_price: 1149000, observed_on: '2026-09-01' },
+    { property_id: 10, event: 'listed', list_price: 999000, observed_on: '2026-08-28' },
+  ];
+  S.ceiling = 1300000; // demo fixture value
+  ingest(props, ratios, marks, metrics, forms, events);
+}
+
+/* ================= derived ================= */
+function tier(p) {
+  const r = S.ratios[p.town];
+  if (!r || !p.assessed_value || !S.ceiling) return null;
+  return p.assessed_value <= S.ceiling / parseFloat(r.r_p75) ? 'in' : 'watch';
+}
+const isMainRoad = p => p.road_fclass != null && p.road_fclass <= 6;
+const tenureYears = p => p.last_sale_date ? new Date().getFullYear() - +p.last_sale_date.slice(0, 4) : null;
+const inView = p => S.view === 'on' ? p.on_market === true : p.on_market !== true;
+const isDone = p => S.marks[S.profile]?.has(p.id);
+
+function filtered(list) {
+  const f = S.filters;
+  let out = list.filter(p => {
+    if (f.town && p.town !== f.town) return false;
+    if (f.nhood && f.town === 'Beverly' && p.neighborhood !== f.nhood) return false;  // Beverly-scoped carve-zone filter
+    if (f.road === 'res' && isMainRoad(p)) return false;
+    if (f.road === 'main' && !isMainRoad(p)) return false;
+    if (f.form && (S.forms.get(skey(p))?.form || '') !== f.form) return false;
+    if (f.beds && !(p.bedrooms >= +f.beds)) return false;
+    if (f.year && !(p.year_built >= +f.year)) return false;
+    if (f.search && !streetOf(p.address).toLowerCase().includes(f.search.toLowerCase()) &&
+        !displayAddr(p.address).toLowerCase().includes(f.search.toLowerCase())) return false;
+    return true;
   });
-  setTimeout(finish, 450);
+  const by = {
+    'price-asc': (a, b) => (a.price_estimate ?? 9e9) - (b.price_estimate ?? 9e9),
+    'price-desc': (a, b) => (b.price_estimate ?? 0) - (a.price_estimate ?? 0),
+    'lot-desc': (a, b) => (b.lot_size ?? 0) - (a.lot_size ?? 0),
+    'tenure-desc': (a, b) => (tenureYears(b) ?? 0) - (tenureYears(a) ?? 0),
+    'year-asc': (a, b) => (a.year_built ?? 9e9) - (b.year_built ?? 9e9),
+  }[f.sort];
+  return out.sort(by);
+}
+const filtersActive = () => {
+  const f = S.filters;
+  return !!(f.search || f.town || f.road || f.form || f.beds || f.year || f.nhood);
+};
+
+/* ================= card rendering ================= */
+function tagRow(p, done) {
+  const tags = [];
+  const t = tier(p);
+  if (t === 'in') tags.push('<span class="tag tier-in">In budget</span>');
+  if (t === 'watch') tags.push('<span class="tag">Borderline</span>');
+  if (isMainRoad(p)) tags.push(`<span class="tag warn">Main rd${p.road_aadt ? ' · ' + fmtK(p.road_aadt) + '/day' : ''}</span>`);
+  const ac = acres(p.lot_size);
+  if (ac != null && ac < 0.30) tags.push('<span class="tag">Small lot</span>');
+  const sm = S.streets.get(skey(p));
+  if (sm?.median_far >= 0.18) tags.push('<span class="tag">High bulk</span>');
+  const ev = S.priceEvents.get(p.id);
+  if (ev?.pending) tags.push('<span class="tag listed">Pending</span>');
+  const other = S.profile === 'Luke' ? 'Michelle' : 'Luke';
+  if (!done && S.marks[other]?.has(p.id)) tags.push(`<span class="tag other-eval">${other} ✓</span>`);
+  return tags.length ? `<div class="tag-row">${tags.join('')}</div>` : '';
 }
 
-window.saveEval = (ev, pid, mode) => {
-  ev.preventDefault();
-  const form = ev.target, st = formState[pid];
-  const err = form.querySelector(".err");
-  const save = form.querySelector(".save");
-  const text = form.querySelector("textarea").value.trim();
-  if (!st.verdict) { err.textContent = "Pick a " + (mode === "off" ? "judgment" : "verdict") + " first."; return false; }
-  if (mode !== "off" && !text) { err.textContent = "Reasoning is required — it's the asset."; return false; }
-  if (DEMO) { err.textContent = "Demo mode — nothing is saved."; return false; }
-  save.disabled = true;
-  save.textContent = "Saving…";
-  // instant acknowledgment at the point of attention: the card dims the
-  // moment you commit, and the confirmed exit continues from that state —
-  // one continuous departure instead of a dead pause on the network
-  const card = form.closest(".card");
-  card.style.transition = "opacity 150ms var(--ease-exit)";
-  card.style.opacity = "0.6";
-  api("evaluations", {}, {
-    method: "POST", raw: true,
-    headers: { Prefer: "return=minimal" },
-    body: { property_id: pid, verdict: st.verdict,
-            failure_axis: st.axes.length ? st.axes : null,
-            hurdles: Object.keys(st.hurdles).length ? st.hurdles : null,
-            nominated_by: who, verbatim_reasoning: text || null },
-  }).then(() => {
-    recordSave(pid, st.verdict, who);
-    exitCard(card);
-  }).catch(e => {
-    card.style.opacity = "";        // ease back — the card isn't going anywhere
-    err.textContent = friendlyError(e, { retry: "tap Save again", keepsWork: true });
-    save.disabled = false;
-    save.textContent = `Save as ${who}`;
-  });
-  return false;
-};
-
-window.setWho = w => {
-  who = w;
-  localStorage.setItem("hh_who", w);
-  if (!data) { main(); return; }           // arriving from the profile gate
-  const chip = document.getElementById("whochip");
-  if (!chip) { renderShell(); return; }
-  chip.innerHTML = `<span class="ava" aria-hidden="true">${esc(who[0])}</span><span class="name">${esc(who)}</span>`;
-  chip.setAttribute("aria-label", `Evaluating as ${who} — switch person`);
-  renderList();   // open forms reset; Save labels and queues follow `who`
-};
-
-// ---- profile action sheet: switching identity is a deliberate act ----
-window.openWhoSheet = () => {
-  if (document.getElementById("whosheet")) return;
-  const el = document.createElement("div");
-  el.id = "whosheet";
-  el.innerHTML = `<div class="sheet-backdrop" onclick="closeWhoSheet()"></div>
-    <div class="sheet" role="menu" aria-label="Switch who's evaluating">
-      <p class="note" style="margin:var(--sp-2) var(--sp-3)">Who's evaluating? Queues and
-        saved verdicts follow the name.</p>
-      ${["Luke", "Michelle"].map(w =>
-        `<button class="item" role="menuitemradio" aria-checked="${w === who}"
-           onclick="chooseWho('${w}')">
-           <span class="ava" aria-hidden="true">${w[0]}</span>${w}
-           ${w === who ? `<span class="check">${icon("check")}</span>` : ""}
-         </button>`).join("")}
-      <button class="item cancel" role="menuitem" onclick="closeWhoSheet()">Cancel</button>
-    </div>`;
-  document.body.appendChild(el);
-  document.getElementById("whochip").setAttribute("aria-expanded", "true");
-  document.addEventListener("keydown", whoSheetKey);
-  el.querySelector('[aria-checked="true"]')?.focus();
-};
-
-window.closeWhoSheet = () => {
-  document.getElementById("whosheet")?.remove();
-  document.removeEventListener("keydown", whoSheetKey);
-  const chip = document.getElementById("whochip");
-  if (chip) { chip.setAttribute("aria-expanded", "false"); chip.focus(); }
-};
-
-window.chooseWho = w => {
-  closeWhoSheet();
-  if (w !== who) setWho(w);
-};
-
-function whoSheetKey(e) {
-  if (e.key === "Escape") closeWhoSheet();
+function streetLine(p) {
+  const sm = S.streets.get(skey(p));
+  if (!sm) return '';
+  const sf = S.forms.get(skey(p));
+  const bits = [];
+  if (sf && sf.form !== 'stub') bits.push(esc(FORM_LABELS[sf.form] || sf.form)); // stub carries no signal
+  bits.push(`${sm.parcel_count} lots`);
+  if (sm.median_lot_sqft) bits.push(`${(sm.median_lot_sqft / 43560).toFixed(2)} ac median`);
+  if (sm.median_far != null) bits.push(`FAR ${(+sm.median_far).toFixed(2)}`);
+  return `<p class="street-line num">Street: ${bits.join(' · ')}</p>`;
 }
 
-window.setMode = m => {
-  view.mode = m;
-  for (const b of document.querySelectorAll("#modeseg button"))
-    b.classList.toggle("on", b.dataset.mode === m);
-  renderList();
-};
-
-window.setTown = t => {
-  view.town = t;
-  // the neighborhood filter is Beverly-scoped: leaving Beverly clears it
-  // (a hidden-but-active filter would break the badge's honesty)
-  if (t !== "Beverly") view.nhood = "any";
-  const w = document.getElementById("nhoodwrap");
-  if (w) w.innerHTML = nhoodGrp();   // drawer open: reveal/hide in place
-  renderList();
-};
-window.setNhood = n => { view.nhood = n; renderList(); };
-window.setRoad = r => { view.road = r; renderList(); };
-window.setBeds = b => { view.beds = b === "any" ? null : +b; renderList(); };
-window.toggleBedsChip = () => {
-  view.beds = view.beds === 4 ? null : 4;
-  renderList();          // chip + badge re-sync via syncFilterSummary
-};
-window.setForm = f => { view.form = f; renderList(); };
-window.setSort = s => { view.sort = s; renderList(); };
-window.flipDir = () => {
-  view.dir = view.dir === "asc" ? "desc" : "asc";
-  for (const b of document.querySelectorAll(".sortgrp .dir"))
-    b.innerHTML = icon(view.dir === "asc" ? "up" : "down");
-  renderList();
-};
-window.toggleDone = () => { view.showDone = !view.showDone; renderList(); };
-
-let yrTimer;
-window.setYears = el => {
-  clearTimeout(yrTimer);
-  yrTimer = setTimeout(() => {
-    // read this control's own pair — the inline and sheet copies coexist
-    const [mn, mx] = el.closest(".yr").querySelectorAll("input");
-    const val = i => /^\d{4}$/.test(i.value.trim()) ? +i.value.trim() : null;
-    view.yrMin = val(mn);                     // apply only complete years
-    view.yrMax = val(mx);
-    renderList();
-  }, 300);
-};
-
-window.filterCards = q => {
-  view.q = q.trim().toLowerCase();
-  applyAddrFilter();
-  syncFilterSummary();
-};
-
-function applyAddrFilter() {
-  let shown = 0;
-  for (const c of document.querySelectorAll(".card")) {
-    const hit = !view.q || c.dataset.addr.includes(view.q);
-    c.style.display = hit ? "" : "none";
-    if (hit) shown++;
+function priceRow(p) {
+  const est = money(p.price_estimate);
+  if (p.on_market === true) {
+    const ev = S.priceEvents.get(p.id);
+    const list = ev?.listPrice != null ? moneyFull(ev.listPrice) : null;
+    let h = `<span class="price num">${list ?? est}</span>`;
+    if (list) {
+      if (ev.prevPrice != null && ev.listPrice < ev.prevPrice)
+        h += `<span class="cut num">↓ ${money(ev.prevPrice - ev.listPrice)}</span>`;
+      h += `<span class="price-sub num">list${ev.listedOn ? ', ' + shortDate(ev.listedOn) : ''} · est ${est}</span>`;
+    } else {
+      h += '<span class="price-sub">est — no list price seen yet</span>';
+    }
+    return h;
   }
-  const none = document.getElementById("nomatch");
-  if (none) none.hidden = shown > 0 || !document.querySelector(".card");
+  return `<span class="price num">${est}</span><span class="price-sub">est</span>`;
 }
 
-function passesFilters(p, town) {
-  if (view.yrMin !== null || view.yrMax !== null) {
-    if (!p.year_built) return false;
-    if (view.yrMin !== null && p.year_built < view.yrMin) return false;
-    if (view.yrMax !== null && p.year_built > view.yrMax) return false;
+function card(p, done) {
+  const l = links(p);
+  const ten = tenureYears(p);
+  const saleYr = p.last_sale_date ? p.last_sale_date.slice(0, 4) : null;
+  const lv = S.localVerdicts[p.id];
+  const verdictLabel = lv && [...LISTING_VERDICTS, ...GATE_VERDICTS].find(v => v[0] === lv.verdict)?.[1];
+  const err = S.saveErrs.get(p.id);
+  return `<article class="card" data-id="${p.id}">
+    <div class="card-head"><h3>${esc(displayAddr(p.address))}</h3><span class="town">${p.town}</span></div>
+    <div class="price-row">${priceRow(p)}</div>
+    <p class="specs num"><span>${p.bedrooms ?? '?'}bd · ${fmtBa(p.bathrooms)}ba</span><span>${fmtNum(p.sqft)} sqft</span><span>${acres(p.lot_size)?.toFixed(2) ?? '?'} ac</span><span>${p.year_built ?? '?'}</span><span>${ten != null ? ten + ' yr' : '—'}</span></p>
+    ${tagRow(p, done)}
+    ${streetLine(p)}
+    <p class="hist-line num">Assessed ${money(p.assessed_value)}${saleYr ? ` · sold ${saleYr} for ${money(p.last_sale_price)}` : ''}</p>
+    ${done && verdictLabel ? `<p class="done-verdict">You said: <b>${verdictLabel}</b>${lv.at ? ' · ' + shortDate(lv.at) : ''}</p>` : ''}
+    ${err ? `<div class="save-err">Save failed — ${esc(err)}. Your draft is kept below.</div>` : ''}
+    <div class="card-foot">
+      <div class="links">
+        <a href="${l.zillow}" target="_blank" rel="noopener">Zillow</a>
+        <a href="${l.redfin}" target="_blank" rel="noopener">Redfin</a>
+        <a href="${l.map}" target="_blank" rel="noopener">Map</a>
+      </div>
+      <button class="eval-open${done || S.open.has(p.id) ? ' reopen' : ''}" data-id="${p.id}">${
+        S.open.has(p.id) ? 'Close' : done ? 'Evaluate again' : (p.on_market === true ? 'Evaluate' : 'Gate check')}</button>
+    </div>
+    ${S.open.has(p.id) ? formHtml(p) : ''}
+  </article>`;
+}
+
+/* ================= eval form ================= */
+function draftFor(p) {
+  if (!S.drafts.has(p.id)) {
+    const d = { verdict: null, axes: [], hurdles: {}, text: '' };
+    if (p.on_market !== true) { // main-road hurdle pre-filled from road_fclass
+      if (p.road_fclass != null) d.hurdles.main_road = p.road_fclass <= 6 ? 'fail' : 'pass';
+    }
+    S.drafts.set(p.id, d);
   }
-  if (view.road === "res" && !(p.road_fclass === 7)) return false;
-  if (view.road === "main" && !(p.road_fclass != null && p.road_fclass <= 6)) return false;
-  if (view.beds !== null && !(p.bedrooms >= view.beds)) return false;
-  if (view.nhood !== "any" && town === "Beverly"
-      && p.neighborhood !== view.nhood) return false;
-  if (view.form !== "any" &&
-      data.streets[town + "|" + streetOf(p.address)]?.form !== view.form)
-    return false;
+  return S.drafts.get(p.id);
+}
+
+function hurdleState(v) {
+  return v === 'pass' ? ['pass', 'Cleared'] : v === 'fail' ? ['fail', 'Failed'] : ['unset', 'Not set'];
+}
+
+function formHtml(p) {
+  const d = draftFor(p);
+  const onMkt = p.on_market === true;
+  const verdicts = onMkt ? LISTING_VERDICTS : GATE_VERDICTS;
+  const title = onMkt ? 'Evaluation' : 'Street View gate';
+  const vBtns = verdicts.map(([v, label]) =>
+    `<button class="choice v-btn" role="radio" aria-checked="${d.verdict === v}" data-v="${v}">${label}</button>`).join('');
+  let inner = '';
+  if (!onMkt) {
+    inner += `<div class="field"><span class="flabel" id="hl-${p.id}">Hurdles — tap to cycle</span>
+      <div class="hurdles" role="group" aria-labelledby="hl-${p.id}">` +
+      HURDLES.map(([k, label]) => {
+        const [st, stLabel] = hurdleState(d.hurdles[k]);
+        return `<button class="hurdle" data-h="${k}" data-state="${st}" aria-label="${label}: ${stLabel.toLowerCase()}">
+          <span class="hname">${label}</span><span class="hstate">${stLabel}</span></button>`;
+      }).join('') + '</div></div>';
+  }
+  inner += `<div class="field"><span class="flabel" id="vl-${p.id}">Verdict</span>
+    <div class="choices${onMkt ? '' : ''}" role="radiogroup" aria-labelledby="vl-${p.id}">${vBtns}</div></div>`;
+  if (onMkt) {
+    inner += `<div class="field"><span class="flabel" id="al-${p.id}">What fails — in order, worst first</span>
+      <div class="axes" role="group" aria-labelledby="al-${p.id}">` +
+      AXES.map(a => {
+        const i = d.axes.indexOf(a);
+        return `<button class="choice ax-btn" aria-pressed="${i >= 0}" data-a="${a}">${
+          i >= 0 && a !== 'none' && d.axes.filter(x => x !== 'none').length > 1 ? `<span class="ord num">${i + 1}</span>` : ''}${AXIS_LABEL[a]}</button>`;
+      }).join('') + '</div></div>';
+  }
+  const textLabel = onMkt ? 'Your words' : 'Note';
+  const hint = onMkt ? 'Required — verbatim. This is the asset.' : 'Optional — anything worth remembering from Street View.';
+  inner += `<div class="field"><label class="flabel" for="txt-${p.id}">${textLabel}</label>
+    <textarea id="txt-${p.id}" rows="3" autocapitalize="sentences">${esc(d.text)}</textarea>
+    <p class="fhint">${hint}</p></div>`;
+  const valid = formValid(p, d);
+  inner += `<div class="save-row"><button class="save-btn" data-id="${p.id}" ${valid && !DEMO ? '' : 'disabled'}>${
+    DEMO ? 'Saving disabled in demo' : `Save as ${esc(S.profile)}`}</button></div>`;
+  return `<div class="eval-form" tabindex="-1" data-form="${p.id}">
+    <div class="form-title"><h4>${title} — ${S.profile}</h4>
+      <button class="form-close" data-id="${p.id}" aria-label="Close form, keep draft">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button></div>${inner}</div>`;
+}
+
+function formValid(p, d) {
+  if (!d.verdict) return false;
+  if (p.on_market === true && !d.text.trim()) return false;
   return true;
 }
 
-function sortHomes(rows) {
-  const key = SORT_KEYS[view.sort];
-  const sgn = view.dir === "asc" ? 1 : -1;
-  return [...rows].sort((a, b) => {
-    const ka = key(a), kb = key(b);
-    if (ka == null && kb == null) return 0;
-    if (ka == null) return 1;                 // nulls last either direction
-    if (kb == null) return -1;
-    return (ka - kb) * sgn;
+/* ================= render ================= */
+// Deploy probe: what the rendered list actually contains, per town — labels,
+// street-line coverage, tag kinds, unknown cells — so a deploy is compared to
+// the previous one mechanically instead of by eye (2026-09-11, after two data
+// regressions shipped past hand verification).
+function writeProbe() {
+  const byTown = {};
+  for (const c of $('list').querySelectorAll('.card')) {
+    const p = S.props.find(x => x.id === +c.dataset.id); if (!p) continue;
+    const b = byTown[p.town] ||= { cards: 0, labels: new Set(), streetLines: 0, tagKinds: new Set(), unknownCells: 0, nullBeds: 0 };
+    b.cards++;
+    b.labels.add(c.querySelector('.card-head .town')?.textContent.trim());
+    if (c.querySelector('.street-line')) b.streetLines++;
+    for (const t of c.querySelectorAll('.tag')) b.tagKinds.add(t.textContent.replace(/[\d,.]+k?\/day|✓/g, '').replace(/[·\s]+$/, '').trim());
+    b.unknownCells += [...c.querySelectorAll('.specs span')].filter(x => x.textContent.includes('?')).length;
+    if (p.bedrooms == null) b.nullBeds++;
+  }
+  for (const t in byTown) {
+    const b = byTown[t];
+    b.labels = [...b.labels].sort(); b.tagKinds = [...b.tagKinds].sort();
+    b.streetLineRate = +(b.streetLines / b.cards).toFixed(3); delete b.streetLines;
+  }
+  const summary = {
+    at: new Date().toISOString(), url: location.href, profile: S.profile, view: S.view,
+    cards: $('list').querySelectorAll('.card').length, done: +($('done-label').textContent.match(/\d+/)?.[0] || 0),
+    ratios: Object.fromEntries(Object.entries(S.ratios).map(([t, r]) => [t, +r.r_median])),
+    streetKeys: Object.fromEntries(TOWNS.map(t => [t, [...S.streets.keys()].filter(k => k.startsWith(t + '|')).length])),
+    byTown, errors: window.__probeErrors || [],
+  };
+  let el = document.getElementById('probe-summary');
+  if (!el) { el = document.createElement('script'); el.type = 'application/json'; el.id = 'probe-summary'; document.body.appendChild(el); }
+  el.textContent = JSON.stringify(summary);
+}
+
+function render() {
+  $('profile-btn').hidden = !S.profile;
+  if (S.profile) {
+    $('profile-name').textContent = S.profile;
+    $('profile-avatar').textContent = S.profile[0];
+  }
+  const dark = document.documentElement.dataset.theme === 'dark';
+  $('icon-sun').hidden = !dark;   // sun offered in dark mode, moon in light
+  $('icon-moon').hidden = dark;
+  $('demo-banner').hidden = !DEMO;
+  if (!S.loaded || !S.profile) return;
+
+  const mine = S.props.filter(inView);
+  const queueAll = mine.filter(p => !isDone(p));
+  const doneAll = mine.filter(p => isDone(p));
+  const offQueue = S.props.filter(p => p.on_market !== true && !isDone(p)).length;
+  const onQueue = S.props.filter(p => p.on_market === true && !isDone(p)).length;
+  $('count-off').textContent = ` ${offQueue}`;
+  $('count-on').textContent = ` ${onQueue}`;
+  $('tab-off').setAttribute('aria-selected', S.view === 'off');
+  $('tab-on').setAttribute('aria-selected', S.view === 'on');
+  $('filters').hidden = false;
+
+  const queue = filtered(queueAll);
+  const fs = $('filter-summary');
+  if (filtersActive()) {
+    fs.hidden = false;
+    fs.innerHTML = `<span class="num">${queue.length} of ${queueAll.length} in queue</span><button id="clear-filters">Clear filters</button>`;
+  } else fs.hidden = true;
+  for (const sel of ['f-town', 'f-nhood', 'f-road', 'f-form', 'f-beds', 'f-year'])
+    $(sel).classList.toggle('active', !!$(sel).value);
+  $('f-nhood').hidden = S.filters.town !== 'Beverly';   // the neighbourhood layer exists only for Beverly
+
+  const list = $('list');
+  const inFlight = list.querySelectorAll('.card.exiting');
+  if (queue.length && inFlight.length) {
+    // A save's exit is mid-flight and something else re-rendered (next card's
+    // form, a filter, a tab). A wholesale innerHTML rebuild would detach the
+    // departing card and snap it away — so patch by id instead: refresh or
+    // insert every wanted card in place, remove the gone ones, leave the
+    // exiting ones exactly where they are so their transition runs to the end.
+    const wanted = new Set(queue.map(p => p.id));
+    for (const el of [...list.children])
+      if (!el.classList.contains('exiting') && !(el.classList.contains('card') && wanted.has(+el.dataset.id))) el.remove();
+    let cursor = list.firstElementChild;
+    for (const p of queue) {
+      while (cursor && cursor.classList.contains('exiting')) cursor = cursor.nextElementSibling;
+      const fresh = document.createRange().createContextualFragment(card(p, false)).firstElementChild;
+      if (cursor && +cursor.dataset.id === p.id) { cursor.replaceWith(fresh); cursor = fresh.nextElementSibling; }
+      else list.insertBefore(fresh, cursor);
+      if (S.reenter.has(p.id)) enterCard(fresh);
+    }
+    S.reenter.clear();
+  } else if (queue.length) {
+    list.innerHTML = queue.map(p => card(p, false)).join('');
+    for (const id of S.reenter) enterCard(list.querySelector(`.card[data-id="${id}"]`));
+    S.reenter.clear();
+  } else if (filtersActive()) {
+    list.innerHTML = `<div class="empty"><div class="big">No homes match these filters</div>
+      <button id="clear-filters-2">Clear filters</button></div>`;
+  } else if (S.view === 'on') {
+    list.innerHTML = `<div class="empty"><div class="big">Nothing on the market</div>
+      When a watchlist home lists, it appears here — that&rsquo;s the moment the prep pays off.</div>`;
+  } else {
+    list.innerHTML = `<div class="empty"><div class="big">Queue clear</div>
+      Every off-market home has your gate check. The done list below has your calls.</div>`;
+  }
+
+  $('done-label').textContent = `Done (${doneAll.length})`;
+  $('done').style.display = doneAll.length ? '' : 'none';
+  $('done-list').innerHTML = filtered(doneAll).map(p => card(p, true)).join('');
+
+  const r = TOWNS.map(t => S.ratios[t] ? `${t} R ${(+S.ratios[t].r_median).toFixed(2)}` : null).filter(Boolean).join(' · ');
+  const rDate = S.ratios[TOWNS[0]]?.computed_at?.slice(0, 10);
+  $('foot').innerHTML = `Estimates = assessed × R, latest per town (${r}${rDate ? `, computed ${rDate}` : ''}).
+    Budget ceiling ${moneyFull(S.ceiling)}. In budget = within the ceiling even at p75 R; borderline = within at median R only.
+    Street context is informative only — it never filters anything by itself.`;
+  if (PROBE) writeProbe();
+}
+
+function renderSkeleton() {
+  $('list').innerHTML = Array.from({ length: 3 }, () => `<div class="skel" aria-hidden="true">
+    <div style="height:20px;width:55%"></div>
+    <div style="height:26px;width:35%;margin-top:10px"></div>
+    <div style="height:14px;width:80%;margin-top:12px"></div>
+    <div style="height:14px;width:70%;margin-top:8px"></div>
+    <div style="height:44px;width:100%;margin-top:44px"></div></div>`).join('');
+}
+
+/* ================= interactions ================= */
+function updateFormControls(p) {
+  // Targeted updates so typing/tapping never rebuilds the textarea
+  const root = document.querySelector(`[data-form="${p.id}"]`);
+  if (!root) return;
+  const d = draftFor(p);
+  root.querySelectorAll('.v-btn').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === d.verdict)));
+  root.querySelectorAll('.ax-btn').forEach(b => {
+    const i = d.axes.indexOf(b.dataset.a);
+    b.setAttribute('aria-pressed', String(i >= 0));
+    const showOrd = i >= 0 && b.dataset.a !== 'none' && d.axes.filter(x => x !== 'none').length > 1;
+    b.innerHTML = `${showOrd ? `<span class="ord num">${i + 1}</span>` : ''}${b.dataset.a}`;
+  });
+  root.querySelectorAll('.hurdle').forEach(b => {
+    const [st, label] = hurdleState(d.hurdles[b.dataset.h]);
+    b.dataset.state = st;
+    b.querySelector('.hstate').textContent = label;
+    b.setAttribute('aria-label', `${b.querySelector('.hname').textContent}: ${label.toLowerCase()}`);
+  });
+  const save = root.querySelector('.save-btn');
+  if (save && !DEMO) save.disabled = !formValid(p, d);
+}
+
+// ---- form open/close, pinned under the tabs (motion brief 2, Luke 2026-09-11) ----
+// The card is the anchor: opening scrolls its header to just under the sticky
+// tabs while the form unfolds beneath it, so the house never leaves the top of
+// the screen. Closing folds the form back. Neither rebuilds the list — the
+// card node stays, so the motion has something to run on.
+const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Reduced-motion fade: opacity only, via WAAPI (unaffected by the CSS rule above).
+const fadeTo = (el, to, ms = 150) => {
+  el.getAnimations().forEach(a => a.cancel());
+  const from = +getComputedStyle(el).opacity;
+  return el.animate([{ opacity: from }, { opacity: to }], { duration: ms, easing: 'ease-out', fill: 'forwards' }).finished.catch(() => {});
+};
+// where a card's top lands once the tabs bar is stuck: bar height + 8
+const anchorTop = () => Math.round((document.querySelector('.tabs-bar')?.offsetHeight || 0) + 8);
+// After a layout change we placed ourselves (an exit), put an element's top on
+// the anchor and hold it there for a few frames while the browser settles.
+function pinToAnchor(el) {
+  let n = 0;
+  const step = () => {
+    const off = Math.round(el.getBoundingClientRect().top - anchorTop());
+    if (Math.abs(off) > 1) scrollTo(0, Math.max(0, scrollY + off));
+    if (++n < 4) requestAnimationFrame(step);
+  };
+  step();
+}
+function scrollCardToAnchor(card) {
+  return new Promise(res => {
+    const top = Math.max(0, Math.round(scrollY + card.getBoundingClientRect().top - anchorTop()));
+    const delta = top - scrollY;
+    if (Math.abs(delta) < 4) return res();
+    if (reduced()) { scrollTo(0, top); return res(); }
+    let done = false; const fin = () => { if (!done) { done = true; removeEventListener('scrollend', fin); res(); } };
+    addEventListener('scrollend', fin);
+    scrollTo({ top, behavior: 'smooth' });
+    // iOS has no scrollend: watch scrollY and resolve once it has settled
+    // (unchanged for 3 frames after it started moving), hard cap 900ms.
+    const t0 = performance.now(); let last = scrollY, still = 0, moved = false;
+    const tick = () => {
+      if (done) return;
+      const y = scrollY; if (y !== last) { moved = true; still = 0; } else still++;
+      last = y;
+      if ((moved && still >= 3) || (!moved && performance.now() - t0 > 150) || performance.now() - t0 > 900) return fin();
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   });
 }
-
-let data = null;   // { watch, onmarket, listPrice, streets }
-let lastTotal = 0; // current queue size — feeds the drawer's apply button
-
-function findHome(pid) {
-  for (const town of TOWNS)
-    for (const src of [data.watch, data.onmarket]) {
-      const hit = (src[town]?.homes || []).find(p => p.id === pid);
-      if (hit) return hit;
-    }
-  return null;
+function expandForm(f) {
+  if (reduced()) { f.style.opacity = '0'; fadeTo(f, 1).then(() => { f.style.opacity = ''; }); return null; }   // appears at full size, eases in
+  const h = f.scrollHeight;
+  const list = f.closest('.list');
+  if (list) list.style.paddingBottom = (12 + h) + 'px';   // reserve the room now so the pan to the anchor isn't clamped by the pre-growth page height
+  f.style.overflow = 'hidden'; f.style.height = '0'; f.style.opacity = '0'; f.style.marginTop = '0';
+  void f.offsetHeight;
+  f.style.transition = 'height 300ms var(--ease-exit), opacity 200ms var(--ease-exit), margin-top 300ms var(--ease-exit)';
+  f.style.height = h + 'px'; f.style.opacity = ''; f.style.marginTop = '';
+  const clear = () => { f.style.transition = ''; f.style.height = ''; f.style.overflow = ''; };
+  f.addEventListener('transitionend', e => { if (e.target === f && e.propertyName === 'height') clear(); });
+  setTimeout(clear, 400);
+  // the reserve is released only once the pan has settled — shrinking the page
+  // mid-scroll cuts a smooth scroll short (measured: 62px early on the last card)
+  return () => { if (list) list.style.paddingBottom = ''; };
 }
-
-function counts() {
-  const c = { off: 0, on: 0 };
-  for (const town of TOWNS) {
-    c.off += (data.watch[town]?.homes || []).length;
-    c.on += (data.onmarket[town]?.homes || []).length;
-  }
-  return c;
+function reviveForm(f) {                        // reopen tapped mid-fold: retarget, don't re-insert
+  f.__revived = true;
+  if (reduced()) { f.style.cssText = ''; fadeTo(f, 1); return; }
+  const h = f.scrollHeight;
+  f.style.transition = 'height 300ms var(--ease-exit), opacity 200ms var(--ease-exit), margin-top 300ms var(--ease-exit)';
+  f.style.height = h + 'px'; f.style.opacity = ''; f.style.marginTop = '';
+  const clear = () => { if (!f.__revived) return; f.style.transition = ''; f.style.height = ''; f.style.overflow = ''; };
+  f.addEventListener('transitionend', e => { if (e.target === f && e.propertyName === 'height') clear(); });
+  setTimeout(clear, 400);
 }
-
-function presentForms() {
-  // filter options = only forms that actually occur among loaded homes'
-  // streets, so no option can ever match nothing
-  const seen = new Set();
-  for (const town of TOWNS)
-    for (const src of [data.watch, data.onmarket])
-      for (const p of src[town]?.homes || []) {
-        const f = data.streets[town + "|" + streetOf(p.address)]?.form;
-        if (f) seen.add(f);
-      }
-  return [...seen].sort((a, b) => formLabel(a).localeCompare(formLabel(b)));
+function collapseForm(f, then) {
+  f.__revived = false;
+  if (reduced()) { fadeTo(f, 0).then(() => { if (!f.__revived) { f.remove(); then?.(); } }); return; }
+  let done = false; const fin = () => { if (!done) { done = true; if (f.__revived) return; f.remove(); then?.(); } };
+  f.style.height = f.offsetHeight + 'px'; f.style.overflow = 'hidden';
+  void f.offsetHeight;
+  f.style.transition = 'height 250ms var(--ease-exit), opacity 150ms var(--ease-exit), margin-top 250ms var(--ease-exit)';
+  f.style.height = '0'; f.style.opacity = '0'; f.style.marginTop = '0';
+  f.addEventListener('transitionend', e => { if (e.target === f && e.propertyName === 'height') fin(); });
+  setTimeout(fin, 350);
 }
-
-// ---- filter controls: ONE markup source, rendered inline (wide) and in
-// the filter sheet (narrow) — sfx suffixes ids so the copies never collide.
-const selTown = () => `<span class="selwrap"><select class="ctl"
-    aria-label="Town" onchange="setTown(this.value)">
-  ${["All", ...TOWNS].map(t => `<option value="${t}"
-     ${view.town === t ? "selected" : ""}>${t === "All" ? "All towns" : t}</option>`).join("")}
-  </select></span>`;
-const selRoad = () => `<span class="selwrap"><select class="ctl"
-    aria-label="Road type" onchange="setRoad(this.value)">
-  <option value="any" ${view.road === "any" ? "selected" : ""}>Any road</option>
-  <option value="res" ${view.road === "res" ? "selected" : ""}>Residential</option>
-  <option value="main" ${view.road === "main" ? "selected" : ""}>Main road</option>
-  </select></span>`;
-const selForm = () => `<span class="selwrap"><select class="ctl"
-    aria-label="Street type" onchange="setForm(this.value)">
-  <option value="any" ${view.form === "any" ? "selected" : ""}>Any street</option>
-  ${presentForms().map(f => `<option value="${f}"
-     ${view.form === f ? "selected" : ""}>${esc(formLabel(f).charAt(0).toUpperCase() + formLabel(f).slice(1))}</option>`).join("")}
-  </select></span>`;
-const selBeds = () => `<span class="selwrap"><select class="ctl"
-    aria-label="Minimum bedrooms" onchange="setBeds(this.value)">
-  <option value="any" ${view.beds === null ? "selected" : ""}>Any beds</option>
-  ${[3, 4, 5].map(n => `<option value="${n}"
-     ${view.beds === n ? "selected" : ""}>${n}+ beds</option>`).join("")}
-  </select></span>`;
-// Beverly's carve zones, derived from the loaded rows (adapts if the
-// ratified carve ever changes). The whole group renders only while the
-// town scope is Beverly — the other towns have no sub-town layer.
-const beverlyZones = () => [...new Set(
-  [...(data.watch.Beverly?.homes || []), ...(data.onmarket.Beverly?.homes || [])]
-    .map(p => p.neighborhood).filter(Boolean))].sort();
-const selNhood = () => `<span class="selwrap"><select class="ctl"
-    aria-label="Neighborhood" onchange="setNhood(this.value)">
-  <option value="any" ${view.nhood === "any" ? "selected" : ""}>All neighborhoods</option>
-  ${beverlyZones().map(z => `<option value="${esc(z)}"
-     ${view.nhood === z ? "selected" : ""}>${esc(z)}</option>`).join("")}
-  </select></span>`;
-const nhoodGrp = () => view.town === "Beverly" && beverlyZones().length
-  ? `<label class="grp"><span class="lbl">Neighborhood</span>${selNhood()}</label>`
-  : "";
-const sortGrp = sfx => `<span class="sortgrp">
-  <span class="selwrap"><select class="ctl" id="sortsel${sfx}"
-      aria-label="Sort by" onchange="setSort(this.value)">
-    ${[["est", "Price est."], ["assessed", "Assessed"], ["year", "Year built"],
-       ["sqft", "Sqft"], ["lot", "Lot size"]]
-      .map(([v, l]) => `<option value="${v}"
-       ${view.sort === v ? "selected" : ""}>${l}</option>`).join("")}
-  </select></span>
-  <button class="ctl dir" aria-label="Reverse sort order"
-    title="Reverse sort order" onclick="flipDir()">${icon(view.dir === "asc" ? "up" : "down")}</button></span>`;
-const yrInputs = sfx => `<input class="ctl" id="yrmin${sfx}" inputmode="numeric"
-    maxlength="4" placeholder="min" aria-label="Built after year"
-    value="${view.yrMin ?? ""}" oninput="setYears(this)">
-  –
-  <input class="ctl" id="yrmax${sfx}" inputmode="numeric" maxlength="4"
-    placeholder="max" aria-label="Built before year"
-    value="${view.yrMax ?? ""}" oninput="setYears(this)">`;
-const qInput = () => `<input type="search" placeholder="Street…"
-  aria-label="Filter by street name" autocomplete="off" spellcheck="false"
-  value="${esc(view.q)}" oninput="filterCards(this.value)">`;
-
-window.openFilterSheet = () => {
-  if (document.getElementById("filtersheet")) return;
-  const grp = (label, ctl) =>
-    `<label class="grp"><span class="lbl">${label}</span>${ctl}</label>`;
-  const el = document.createElement("div");
-  el.id = "filtersheet";
-  el.innerHTML = `<div class="drawer" role="dialog" aria-modal="true"
-      aria-label="Filters" tabindex="-1">
-      <div class="drawer-top"><span class="drawer-title">Filters</span></div>
-      ${grp("Town", selTown())}<span id="nhoodwrap">${nhoodGrp()}</span>${grp("Road", selRoad())}
-      ${grp("Street type", selForm())}${grp("Bedrooms", selBeds())}
-      <div class="grp"><span class="lbl">Sort</span>${sortGrp("-s")}</div>
-      <div class="grp"><span class="lbl">Built</span>
-        <span class="yr">${yrInputs("-s")}</span></div>
-      ${grp("Street name", qInput())}
-      <button class="save apply" id="drawerdone" onclick="closeFilterSheet()">
-        Show ${lastTotal} home${plural(lastTotal)}</button>
-    </div>`;
-  document.body.appendChild(el);
-  document.getElementById("filtersbtn").setAttribute("aria-expanded", "true");
-  document.addEventListener("keydown", drawerKey);
-  el.querySelector(".drawer").focus();   // container, never a control
-};
-
-window.closeFilterSheet = () => {
-  document.getElementById("filtersheet")?.remove();
-  document.removeEventListener("keydown", drawerKey);
-  renderShell();          // re-sync the inline copies of every control
-  document.getElementById("filtersbtn")?.focus();
-};
-
-function drawerKey(e) {
-  if (e.key === "Escape") { closeFilterSheet(); return; }
-  if (e.key !== "Tab") return;           // trap focus: it's a modal takeover
-  const f = [...document.querySelectorAll(
-    "#filtersheet select, #filtersheet input, #filtersheet button")];
-  if (!f.length) return;
-  const first = f[0], last = f[f.length - 1];
-  if (e.shiftKey && document.activeElement === first) {
-    last.focus(); e.preventDefault();
-  } else if (!e.shiftKey && document.activeElement === last) {
-    first.focus(); e.preventDefault();
+function setOpenButton(card, p, open) {
+  const b = card.querySelector('.eval-open'); if (!b) return;
+  const done = card.parentElement?.id === 'done-list';
+  b.classList.toggle('reopen', open || done);
+  b.textContent = open ? 'Close' : done ? 'Evaluate again' : (p.on_market === true ? 'Evaluate' : 'Gate check');
+}
+function toggleForm(id) {
+  const p = S.props.find(x => x.id === id);
+  if (!p) return;
+  const card = document.querySelector(`.card[data-id="${id}"]`);
+  if (!card) { if (S.open.has(id)) S.open.delete(id); else S.open.add(id); render(); return; }
+  if (S.open.has(id)) {
+    S.open.delete(id);
+    setOpenButton(card, p, false);
+    const f = card.querySelector('.eval-form');
+    if (f) collapseForm(f); else render();
+    card.querySelector('.eval-open')?.focus({ preventScroll: true });
+  } else {
+    S.open.add(id); S.saveErrs.delete(id);
+    card.querySelector('.save-err')?.remove();
+    setOpenButton(card, p, true);
+    let f = card.querySelector('.eval-form');
+    let release = null;
+    if (f) reviveForm(f);                          // still folding from a Close a moment ago
+    else { card.insertAdjacentHTML('beforeend', formHtml(p)); f = card.querySelector('.eval-form'); release = expandForm(f); }
+    scrollCardToAnchor(card).then(() => { release?.(); f.focus({ preventScroll: true }); });
   }
 }
 
-// bar state sync. Badge = UNIFIED count of ALL active filters, wherever
-// they were set (the Redfin behavior). Summary lists only drawer-only
-// actives — the persistent controls self-display town and 4+ beds.
-function syncFilterSummary() {
-  let active = 0;
-  const parts = [];
-  const count = (cond, label) => {
-    if (!cond) return;
-    active++;
-    if (label) parts.push(label);
+// ---- saved-card exit (motion brief, Luke-confirmed 2026-09-11) ----
+// Starts at the tap (optimistic). Fade+scale 150ms while the slot collapses
+// 300ms, both from t=0 on --ease-exit; the list re-renders only after the
+// last in-flight exit finishes. Height/padding/margin animate by design here
+// (brief-backed deviation from transform/opacity-only): the collapse IS the
+// message — where the list closed.
+function exitCard(card, then, prefaded) {
+  if (!card) { then(); return; }
+  if (reduced()) { card.classList.add('exiting'); fadeTo(card, 0).then(() => { card.remove(); then(); }); return; }   // fade, then the slot closes at once
+  let done = false;
+  const finish = () => { if (!done) { done = true; card.remove(); then(); } };   // gone before the re-render, so the patch path can't keep it
+  card.classList.add('exiting');
+  const h = card.offsetHeight;
+  const dur = Math.round(Math.min(450, Math.max(300, h * 0.3)));   // a taller card takes longer to leave (feel-iteration 2)
+  const fade = Math.round(dur * 0.6);
+  card.style.height = h + 'px';                    // pin, then collapse
+  card.style.overflow = 'hidden';
+  void card.offsetHeight;                          // flush: the pin must be the computed 'from'
+  card.style.transition = (prefaded ? '' : `opacity ${fade}ms var(--ease-exit), transform ${fade}ms var(--ease-exit), `) +
+    `height ${dur}ms var(--ease-exit), margin-bottom ${dur}ms var(--ease-exit),` +
+    ` padding-top ${dur}ms var(--ease-exit), padding-bottom ${dur}ms var(--ease-exit)`;
+  if (!prefaded) { card.style.opacity = '0'; card.style.transform = 'scale(0.98)'; }
+  card.style.height = '0';
+  card.style.marginBottom = '-12px';               // eat this slot's list gap
+  card.style.paddingTop = '0';
+  card.style.paddingBottom = '0';
+  card.addEventListener('transitionend', e => {    // only the longest transition may finish it
+    if (e.target === card && e.propertyName === 'height') finish();
+  });
+  setTimeout(finish, dur + 150);                   // hard fallback: the queue never sticks
+}
+// A failed save brings the card back the way it left (mirror, shorter).
+function enterCard(card) {
+  if (!card) return;
+  if (reduced()) { card.style.opacity = '0'; fadeTo(card, 1).then(() => { card.style.opacity = ''; }); return; }
+  card.style.contentVisibility = 'visible';        // measure the real height, not the content-visibility placeholder
+  const h = card.offsetHeight;
+  card.style.overflow = 'hidden';
+  card.style.height = '0'; card.style.opacity = '0'; card.style.transform = 'scale(0.98)';   // the exit's mirror: fade + 2% scale + slot
+  card.style.paddingTop = '0'; card.style.paddingBottom = '0';
+  void card.offsetHeight;
+  card.style.transition = 'opacity 200ms var(--ease-exit), transform 200ms var(--ease-exit), height 200ms var(--ease-exit), padding-top 200ms var(--ease-exit), padding-bottom 200ms var(--ease-exit)';
+  card.style.height = h + 'px'; card.style.opacity = ''; card.style.transform = ''; card.style.paddingTop = ''; card.style.paddingBottom = '';
+  const clear = () => { card.style.transition = ''; card.style.height = ''; card.style.overflow = ''; card.style.contentVisibility = ''; };
+  card.addEventListener('transitionend', e => { if (e.target === card && e.propertyName === 'height') clear(); });
+  setTimeout(clear, 350);
+}
+
+async function save(id) {
+  const p = S.props.find(x => x.id === id);
+  const d = draftFor(p);
+  if (!formValid(p, d) || DEMO) return;
+  const onMkt = p.on_market === true;
+  const row = {
+    property_id: p.id,
+    verdict: d.verdict,
+    nominated_by: S.profile,
+    failure_axis: onMkt && d.axes.length ? d.axes : null,
+    hurdles: !onMkt && Object.keys(d.hurdles).length ? d.hurdles : null,
+    verbatim_reasoning: d.text.trim() || null,
   };
-  count(view.town !== "All", null);              // shown by the town select
-  count(view.beds === 4, null);                  // shown by the 4+ beds chip
-  count(view.beds !== null && view.beds !== 4, `${view.beds}+ beds`);
-  count(view.nhood !== "any", view.nhood);
-  count(view.road !== "any",
-        view.road === "res" ? "residential" : "main road");
-  count(view.form !== "any", formLabel(view.form));
-  count(view.yrMin !== null || view.yrMax !== null,
-        `built ${view.yrMin ?? ""}–${view.yrMax ?? ""}`);
-  count(!!view.q, `“${view.q}”`);
-  const btn = document.getElementById("filtersbtn");
-  if (btn) btn.textContent = "Filters" + (active ? ` · ${active}` : "");
-  const sum = document.getElementById("fsummary");
-  if (sum) sum.textContent = parts.join(" · ");
-  const chip = document.getElementById("bedschip");
-  if (chip) {
-    chip.classList.toggle("on", view.beds === 4);
-    chip.setAttribute("aria-pressed", String(view.beds === 4));
-  }
-}
-
-function renderShell() {
-  const c = counts();
-  $app.innerHTML = `<header>
-    <div class="hdr-row primary">
-      <span class="seg" id="modeseg" role="group" aria-label="View">
-        <button data-mode="off" class="${view.mode === "off" ? "on" : ""}"
-          onclick="setMode('off')">Off-market (${c.off})</button>
-        <button data-mode="on" class="${view.mode === "on" ? "on" : ""}"
-          onclick="setMode('on')">On market (${c.on})</button>
-      </span>
-      <span class="hdr-right">
-        <button class="iconbtn" id="themebtn" onclick="toggleTheme()"></button>
-        <button class="who-chip" id="whochip" aria-haspopup="menu"
-          aria-expanded="false" aria-label="Evaluating as ${esc(who)} — switch person"
-          onclick="openWhoSheet()">
-          <span class="ava" aria-hidden="true">${esc(who[0] || "?")}</span><span class="name">${esc(who)}</span>
-        </button>
-      </span>
-    </div>
-    <div class="hdr-row">
-      <button class="ctl" id="filtersbtn" aria-haspopup="dialog"
-        aria-expanded="false" onclick="openFilterSheet()">Filters</button>
-      ${selTown()}
-      <button class="qchip ${view.beds === 4 ? "on" : ""}" id="bedschip"
-        aria-pressed="${view.beds === 4}" onclick="toggleBedsChip()">4+ beds</button>
-      <span class="fsummary" id="fsummary" aria-live="polite"></span>
-    </div></header><main id="list"></main>`;
-  syncThemeBtn();
-  renderList();
-}
-
-function renderList() {
-  if (!data) return;
-  const src = view.mode === "off" ? data.watch : data.onmarket;
-  let total = 0, doneTotal = 0;
-  let html = "";
-  if (DEMO) html += `<p class="note">Demo data — saving is disabled.</p>`;
-  if (view.mode === "on")
-    html += `<p class="note">Watchlist homes that are on the market right now —
-      preparation meets opportunity. Photos exist here, so the full verdict +
-      your words applies. List price from the most recent Redfin alert.</p>`;
-  let doneHtml = "";
-  for (const town of TOWNS) {
-    if (view.town !== "All" && view.town !== town) continue;
-    const { r, homes } = src[town] || { homes: [] };
-    const inCut = r ? CEILING / Number(r.r_p75) : Infinity;
-    const rows = sortHomes((homes || []).filter(p => passesFilters(p, town)));
-    const queue = rows.filter(p => !(marks.get(p.id)?.has(who)));
-    const mine = rows.filter(p => marks.get(p.id)?.has(who));
-    total += queue.length;
-    doneTotal += mine.length;
-    const rctx = r ? ` <span class="prov">R ${r.r_median} · n=${r.n} · ${r.computed_at.slice(0, 10)}</span>` : "";
-    html += `<h2>${town} — ${queue.length} to review${view.mode === "off" ? rctx : ""}</h2>`;
-    if (view.mode === "on" && !(homes || []).length)
-      html += `<p class="note">No watchlist homes listed in ${town} right now —
-        when one lists, it appears here (and leaves the off-market queue).</p>`;
-    html += queue.map(p => homeCard(p, town, inCut, view.mode,
-      data.listPrice[p.id])).join("");
-    if (mine.length && view.showDone)
-      doneHtml += `<h2>${town} — done by ${esc(who)} (${mine.length})</h2>` +
-        mine.map(p => homeCard(p, town, inCut, view.mode,
-          data.listPrice[p.id])).join("");
-  }
-  if (total === 0) html += `<p class="note">Queue clear — no homes match these filters that ${esc(who)} hasn't evaluated.</p>`;
-  if (doneTotal)
-    html += `<button class="donetoggle" onclick="toggleDone()">
-      ${icon(view.showDone ? "chevDown" : "chevRight")}${view.showDone ? "Hide" : "Show"} ${doneTotal} already evaluated by ${esc(who)}</button>`;
-  html += doneHtml;
-  html += `<p class="note" id="nomatch" hidden>No homes match this filter.</p>`;
-  html += `<p class="note">Queues are per person — homes you evaluate leave your
-    queue and stay in the other. Ceiling $${CEILING.toLocaleString()} ·
-    est = assessed × R · in budget / borderline = under the ceiling at the
-    conservative / median R · MAIN RD per MassDOT (peak daily traffic) ·
-    FAR = living sqft ÷ lot sqft; SMALL LOT (&lt; 0.30 ac) and HIGH BULK
-    (street median FAR ≥ ${HIGH_BULK_FAR}) are informative tags —
-    prompts to look closer on Street View, never filters.</p>`;
-  document.getElementById("list").innerHTML = html;
-  applyAddrFilter();
-  syncFilterSummary();
-  lastTotal = total;
-  const dd = document.getElementById("drawerdone");
-  if (dd) dd.textContent = `Show ${total} home${plural(total)}`;
-}
-
-function renderGate() {
-  $app.innerHTML = `<div class="gate"><h1>Who's evaluating?</h1>
-    ${["Luke", "Michelle"].map(w =>
-      `<button onclick="setWho('${w}')">${w}</button>`).join("")}
-    <p class="note">Verdicts are stamped with your name. Each of you has your
-    own queue — switch anytime, top right.</p></div>`;
-}
-
-function renderSetup() {
-  $app.innerHTML = `<div class="setup"><h1>Setup</h1>
-    <p>Paste the Supabase <b>anon (publishable)</b> key — found in the dashboard
-    under Settings → API. Never the service-role key.</p>
-    <label class="lbl" for="k">Anon key</label>
-    <input id="k" placeholder="eyJ…" autocomplete="off" spellcheck="false">
-    <button class="save" onclick="localStorage.setItem('hh_anon_key',
-      document.getElementById('k').value.trim()); location.reload()">Save</button></div>`;
-}
-
-async function main() {
-  if (!DEMO && !anonKey()) { renderSetup(); return; }
-  if (!who) { renderGate(); return; }
-  $app.innerHTML = `<p class="note" style="margin:var(--sp-6) var(--sp-4)">Loading…</p>`;
+  // Optimistic: the queue moves now; the network catches up (or reverts).
+  const me = S.profile;
+  S.marks[me].add(id);
+  S.localVerdicts[id] = { verdict: d.verdict, by: me, at: new Date().toISOString().slice(0, 10) };
+  localStorage.setItem('hh2-verdicts', JSON.stringify(S.localVerdicts));
+  S.open.delete(id);
+  S.saveErrs.delete(id);
+  S.pendingSaves++;
+  toast(`Saved — ${displayAddr(p.address)}`);
+  const el = $('list').querySelector(`.card[data-id="${id}"]`);
+  if (el) {
+    // remember where the saved card sat so focus can land on its successor
+    const idx = [...$('list').children].indexOf(el);
+    S.exiting++;
+    el.classList.add('exiting');                   // input falls through from the tap onward
+    // Feel-iteration 3 tried fading the card during the pan; Luke: a faded
+    // screen-tall card is a blank page for the whole pan ("too much is
+    // happening"). The card stays visible while the camera comes to it, and
+    // fades as its slot closes — the motion serves the landing, not itself.
+    const prefaded = false;
+    await scrollCardToAnchor(el);                  // the camera first: you watch the card you judged leave
+    exitCard(el, () => {
+      S.exiting--;
+      if (S.exiting !== 0) return;
+      render();
+      const cards = $('list').querySelectorAll('.card');
+      const next = cards[Math.min(idx, cards.length - 1)];
+      if (next) pinToAnchor(next);                           // land on the successor, pinned under the tabs
+      if (document.activeElement === document.body)          // focus died with the card (keyboard flow, a11y floor)
+        next?.querySelector('.eval-open')?.focus({ preventScroll: true });
+    }, prefaded);
+  } else render();
   try {
-    data = DEMO ? demoData() : await loadAll();
-    renderShell();
+    const key = anonKey();
+    const r = await fetch(`${SUPA_URL}/rest/v1/evaluations`, {
+      method: 'POST',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify(row),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    S.drafts.delete(id);
   } catch (e) {
-    $app.innerHTML = `<div class="setup"><p class="err">${esc(friendlyError(e, { retry: "reload" }))}</p>
-      <button class="save" onclick="localStorage.removeItem('hh_anon_key');
-        location.reload()">Re-enter key</button></div>`;
+    S.marks[me].delete(id);
+    delete S.localVerdicts[id];
+    localStorage.setItem('hh2-verdicts', JSON.stringify(S.localVerdicts));
+    S.open.add(id);
+    S.saveErrs.set(id, String(e.message || e));
+    S.reenter.add(id);                             // render() plays the return
+    if (S.exiting === 0) render();                 // else the in-flight exit's finish renders
+    toast(`Save failed — ${displayAddr(p.address)} is back in your queue`, true);
+  } finally {
+    S.pendingSaves--;
   }
 }
 
-async function loadAll() {
-  const cutoff = new Date(Date.now() - TENURE_YEARS * 365.25 * 864e5)
-    .toISOString().slice(0, 10);
-  const [soldRows, rRows, markRows, streetRows] = await Promise.all([
-    api("listing_events", { event: "eq.sold", select: "property_id" }),
-    api("town_price_ratios", { town: `in.(${TOWNS.join(",")})`,
-      select: "town,r_median,r_p75,n,computed_at", order: "computed_at.desc" }),
-    api("eval_marks", { select: "property_id,nominated_by" }),
-    api("street_metrics", { town: `in.(${TOWNS.join(",")})`,
-      select: "town,street,parcel_count,median_far,median_year_built" }),
-  ]);
-  const formRows = await api("street_forms", {
-    town: `in.(${TOWNS.join(",")})`, select: "town,street,form" });
-  const streets = {};
-  for (const s of streetRows) streets[s.town + "|" + s.street] = s;
-  for (const f of formRows)
-    (streets[f.town + "|" + f.street] =
-      streets[f.town + "|" + f.street] || {}).form = f.form;
-  marks = new Map();
-  for (const m of markRows) addMark(m.property_id, m.nominated_by);
-  const sold = new Set(soldRows.map(r => r.property_id));
-  const R = {};
-  for (const r of rRows) if (!R[r.town]) R[r.town] = r;
-  // ONE universe — the watchlist — partitioned by listing state. A home
-  // lives in the off-market gate queue until it lists, then moves to the
-  // on-market view (photos exist -> full evaluation). Non-criteria listings
-  // never enter either view: the shortlist exists to not waste time on them.
-  const watch = {}, onmarket = {};
-  for (const town of TOWNS) {
-    const wl = await api("properties", {
-      town: `eq.${town}`, ...TOWN_PREDICATE(town),
-      sqft: "gte.1800", last_sale_price: "gt.100000",
-      last_sale_date: `lt.${cutoff}`, price_estimate: `lte.${CEILING}`,
-      select: PROP_FIELDS, order: "price_estimate.asc" });
-    const rows = wl.filter(p => !sold.has(p.id));
-    watch[town] = { r: R[town], homes: rows.filter(p => p.on_market !== true) };
-    onmarket[town] = { r: R[town], homes: rows.filter(p => p.on_market === true) };
+document.addEventListener('click', e => {
+  const t = e.target.closest('button, a');
+  if (!t) return;
+  if (t.id === 'tab-off' || t.id === 'tab-on') {
+    S.view = t.id === 'tab-on' ? 'on' : 'off';
+    render();
+    return;
   }
-  const onmIds = TOWNS.flatMap(t => onmarket[t].homes.map(p => p.id));
-  const listPrice = {};
-  if (onmIds.length) {
-    const ev = await api("listing_events", {
-      property_id: `in.(${onmIds.join(",")})`,
-      event: "in.(listed,price_change)",
-      select: "property_id,list_price,observed_on", order: "observed_on.desc" });
-    for (const e of ev)
-      if (e.list_price && !(e.property_id in listPrice))
-        listPrice[e.property_id] = e.list_price;
+  if (t.id === 'theme-btn') {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.classList.add('no-transitions');
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem('hh2-theme', next);
+    requestAnimationFrame(() => requestAnimationFrame(() =>
+      document.documentElement.classList.remove('no-transitions')));
+    render();
+    return;
   }
-  return { watch, onmarket, listPrice, streets };
+  if (t.id === 'profile-btn') { showGate(true); return; }
+  if (t.dataset.profile) {
+    S.profile = t.dataset.profile;
+    localStorage.setItem('hh2-profile', S.profile);
+    $('gate').hidden = true;
+    render();
+    return;
+  }
+  if (t.id === 'gate-cancel') { $('gate').hidden = true; return; }
+  if (t.id === 'clear-filters' || t.id === 'clear-filters-2') {
+    S.filters = { search: '', town: '', road: '', form: '', beds: '', year: '', nhood: '', sort: S.filters.sort };
+    for (const [id, k] of [['f-search', 'search'], ['f-town', 'town'], ['f-nhood', 'nhood'], ['f-road', 'road'], ['f-form', 'form'], ['f-beds', 'beds'], ['f-year', 'year']])
+      $(id).value = S.filters[k];
+    render();
+    return;
+  }
+  if (t.classList.contains('eval-open')) { toggleForm(+t.dataset.id); return; }
+  if (t.classList.contains('form-close')) { toggleForm(+t.dataset.id); return; }
+  if (t.classList.contains('save-btn') && t.dataset.id) { save(+t.dataset.id); return; }
+
+  const form = t.closest('[data-form]');
+  if (form) {
+    const p = S.props.find(x => x.id === +form.dataset.form);
+    const d = draftFor(p);
+    if (t.classList.contains('v-btn')) d.verdict = t.dataset.v;
+    else if (t.classList.contains('ax-btn')) {
+      const a = t.dataset.a;
+      const i = d.axes.indexOf(a);
+      if (i >= 0) d.axes.splice(i, 1);
+      else if (a === 'none') d.axes = ['none'];
+      else { d.axes = d.axes.filter(x => x !== 'none'); d.axes.push(a); }
+    } else if (t.classList.contains('hurdle')) {
+      const k = t.dataset.h;
+      const cur = d.hurdles[k];                       // cycle: unset -> pass -> fail -> unset
+      if (cur === 'pass') d.hurdles[k] = 'fail';
+      else if (cur === 'fail') delete d.hurdles[k];
+      else d.hurdles[k] = 'pass';
+    } else return;
+    updateFormControls(p);
+  }
+});
+
+document.addEventListener('input', e => {
+  if (e.target.id === 'f-search') {
+    clearTimeout(document._searchT);
+    document._searchT = setTimeout(() => { S.filters.search = e.target.value.trim(); render(); }, 250);
+    return;
+  }
+  const form = e.target.closest('[data-form]');
+  if (form && e.target.tagName === 'TEXTAREA') {
+    const p = S.props.find(x => x.id === +form.dataset.form);
+    draftFor(p).text = e.target.value;
+    const save = form.querySelector('.save-btn');
+    if (save && !DEMO) save.disabled = !formValid(p, draftFor(p));
+  }
+});
+
+document.addEventListener('change', e => {
+  const map = { 'f-town': 'town', 'f-nhood': 'nhood', 'f-road': 'road', 'f-form': 'form', 'f-beds': 'beds', 'f-year': 'year', 'f-sort': 'sort' };
+  if (map[e.target.id]) {
+    S.filters[map[e.target.id]] = e.target.value;
+    if (e.target.id === 'f-town' && e.target.value !== 'Beverly') { S.filters.nhood = ''; $('f-nhood').value = ''; }  // leaving Beverly clears its zone filter
+    render();
+  }
+});
+
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && e.target.tagName === 'TEXTAREA') {
+    const form = e.target.closest('[data-form]');
+    if (form) { e.preventDefault(); save(+form.dataset.form); }
+  }
+  if (e.key === 'Escape' && e.target.closest?.('[data-form]')) {
+    toggleForm(+e.target.closest('[data-form]').dataset.form);
+  }
+});
+
+window.addEventListener('beforeunload', e => {
+  if (S.pendingSaves > 0) { e.preventDefault(); e.returnValue = ''; }
+});
+
+function showGate(cancellable) {
+  $('gate-cancel').hidden = !cancellable;
+  $('gate').hidden = false;
 }
 
-function demoData() {
-  const mk = (id, address, yb, sqft, lot, av, pe, sd, sp, om, fc, aadt, bd, ba) => ({
-    id, address, year_built: yb, building_style: "COLONIAL", sqft, lot_size: lot,
-    assessed_value: av, price_estimate: pe, last_sale_date: sd, last_sale_price: sp,
-    on_market: om, road_fclass: fc, road_aadt: aadt, bedrooms: bd, bathrooms: ba });
-  const r = { r_median: "1.1749", r_p75: "1.2523", n: 31, computed_at: "2026-08-06T00:00:00" };
-  return {
-    watch: {
-      Wenham: { r, homes: [
-        mk(1, "186 TOPSFIELD RD", 1949, 1920, 20473, 704900, 828187, "1999-06-01", 185000, null, 4, 8033, 3, 2),
-        mk(2, "6 LAKE AV", 1950, 2246, 10454, 761700, 894921, "1993-05-01", 170000, null, 7, 1154, 4, 2)] },
-      Hamilton: { r, homes: [
-        mk(3, "21 UNTITLED ST", 1955, 2100, 15000, 700000, 842100, "2004-03-01", 300000, false, 7, 900, 4, 1)] },
-    },
-    onmarket: {
-      Wenham: { r, homes: [
-        mk(4, "9 DEMO WAY", 1988, 2400, 22000, 800000, 940000, "2021-05-01", 850000, true, 7, 1000, 4, 2.5)] },
-      Hamilton: { r, homes: [] },
-    },
-    listPrice: { 4: 999000 },
-    streets: {
-      "Wenham|TOPSFIELD RD": { parcel_count: 78, median_far: 0.058, median_year_built: 1954, form: "collector" },
-      "Wenham|LAKE AV": { parcel_count: 14, median_far: 0.126, median_year_built: 1952, form: "grid" },
-      "Hamilton|UNTITLED ST": { parcel_count: 30, median_far: 0.19, median_year_built: 1978, form: "grid" },
-      "Wenham|DEMO WAY": { parcel_count: 9, median_far: 0.09, median_year_built: 1990, form: "cul_de_sac" },
-    },
-  };
+/* ================= boot ================= */
+async function boot() {
+  render(); // header chrome
+  if (!DEMO && !anonKey()) {
+    $('key-screen').hidden = false;
+    $('key-form').addEventListener('submit', ev => {
+      ev.preventDefault();
+      const v = $('key-input').value.trim();
+      if (!v) return;
+      localStorage.setItem('hh2-anon-key', v);
+      location.reload();
+    });
+    return;
+  }
+  if (!S.profile) showGate(false);
+  renderSkeleton();
+  try {
+    if (DEMO) loadDemo(); else await loadLive();
+    // populate the street-form filter from the data actually present
+    const seen = [...new Set(S.props.map(p => S.forms.get(skey(p))?.form).filter(f => f && f !== 'stub'))].sort();
+    $('f-form').innerHTML = '<option value="">Any street form</option>' +
+      seen.map(f => `<option value="${f}">${FORM_LABELS[f] || f}</option>`).join('');
+    // Beverly's carve zones, from the rows actually loaded (the other towns have no sub-town layer)
+    const zones = [...new Set(S.props.filter(p => p.town === 'Beverly').map(p => p.neighborhood).filter(Boolean))].sort();
+    $('f-nhood').innerHTML = '<option value="">All neighborhoods</option>' +
+      zones.map(z => `<option value="${esc(z)}">${esc(z)}</option>`).join('');
+    render();
+  } catch (e) {
+    $('list').innerHTML = `<div class="load-err"><div class="big">Couldn&rsquo;t load the watchlist</div>
+      <p>${esc(e.message || e)}</p><button onclick="location.reload()">Retry</button></div>`;
+  }
 }
-
-main();
+boot();
 </script>
 </body>
 </html>
