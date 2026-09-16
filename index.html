@@ -878,9 +878,18 @@ const TOWNS = ['Wenham', 'Hamilton', 'Beverly'];
 // Beverly is carved (in_target_area = the four ratified zones) and its
 // colonial-family style set includes 'Dutch Col', which ilike *COLONIAL*
 // alone would miss. Same clauses as pipeline/watchlist_export.py.
-const TOWN_PREDICATE = t => t === 'Beverly'
-  ? { in_target_area: 'is.true', or: '(building_style.ilike.*COLONIAL*,building_style.eq.Dutch Col)' }
-  : { building_style: 'ilike.*COLONIAL*' };
+// Tenure basis (Luke, 2026-09-16): a NULL sale price with a 15+-year-old
+// sale date counts as long tenure (9 Hull St Wenham: 1991 land purchase,
+// house built 1992, price never recorded). Only ≤$100k sentinel transfers
+// stay "tenure unknown". Both or-groups nest under one and=() for PostgREST.
+const TOWN_PREDICATE = t => {
+  const style = t === 'Beverly'
+    ? 'or(building_style.ilike.*COLONIAL*,building_style.eq.Dutch Col)'
+    : 'building_style.ilike.*COLONIAL*';
+  const p = { and: `(${style},or(last_sale_price.gt.100000,last_sale_price.is.null))` };
+  if (t === 'Beverly') p.in_target_area = 'is.true';
+  return p;
+};
 const ZIPS = { Wenham: '01984', Hamilton: '01982', Beverly: '01915', Marblehead: '01945', Swampscott: '01907' };
 // Shortlist membership: a person's latest call on the house is one of these.
 const CONSIDER = new Set(['would-consider', 'would-offer-now']);
@@ -1053,7 +1062,6 @@ async function loadLive() {
       town: `eq.${t}`,
       ...TOWN_PREDICATE(t),
       sqft: 'gte.1800',
-      last_sale_price: 'gt.100000',
       last_sale_date: `lt.${tenureCutoff()}`,
       price_estimate: `lte.${CEIL}`,
       order: 'price_estimate.asc,id',
