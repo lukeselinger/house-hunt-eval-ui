@@ -878,15 +878,18 @@ const TOWNS = ['Wenham', 'Hamilton', 'Beverly'];
 // Beverly is carved (in_target_area = the four ratified zones) and its
 // colonial-family style set includes 'Dutch Col', which ilike *COLONIAL*
 // alone would miss. Same clauses as pipeline/watchlist_export.py.
-// Tenure basis (Luke, 2026-09-16): a NULL sale price with a 15+-year-old
-// sale date counts as long tenure (9 Hull St Wenham: 1991 land purchase,
-// house built 1992, price never recorded). Only ≤$100k sentinel transfers
-// stay "tenure unknown". Both or-groups nest under one and=() for PostgREST.
+// Tenure (Luke, 2026-09-16, house-hunt-warren-group-spike.md): the Registry
+// deed chain decides where it can. tenure_sale_date = effective last MARKET
+// sale (deed-chain arms-length sale 2010+ if any, else the assessor date when
+// its price passes the sentinel rule, else null); tenure_basis =
+// deed_sale | deed_no_sale_since_2010 | assessor. Long tenure = sale before
+// the cutoff OR no market sale in 16 years of deeds. Same clauses as
+// pipeline/watchlist_export.py; both or-groups nest under one and=().
 const TOWN_PREDICATE = t => {
   const style = t === 'Beverly'
     ? 'or(building_style.ilike.*COLONIAL*,building_style.eq.Dutch Col)'
     : 'building_style.ilike.*COLONIAL*';
-  const p = { and: `(${style},or(last_sale_price.gt.100000,last_sale_price.is.null))` };
+  const p = { and: `(${style},or(tenure_sale_date.lt.${tenureCutoff()},tenure_basis.eq.deed_no_sale_since_2010))` };
   if (t === 'Beverly') p.in_target_area = 'is.true';
   return p;
 };
@@ -1062,11 +1065,10 @@ async function loadLive() {
       town: `eq.${t}`,
       ...TOWN_PREDICATE(t),
       sqft: 'gte.1800',
-      last_sale_date: `lt.${tenureCutoff()}`,
       price_estimate: `lte.${CEIL}`,
       order: 'price_estimate.asc,id',
       select: 'id,address,town,neighborhood,year_built,sqft,bedrooms,bathrooms,building_style,lot_size,' +
-              'assessed_value,price_estimate,last_sale_date,last_sale_price,on_market,road_fclass,road_aadt',
+              'assessed_value,price_estimate,last_sale_date,last_sale_price,tenure_sale_date,tenure_basis,deed_last_sale_date,deed_last_sale_price,on_market,road_fclass,road_aadt',
     }))).then(byTown => byTown.flat()),
   ]);
 
@@ -1248,7 +1250,20 @@ const annualTax = (assessed, town) => {
   return r && assessed ? assessed * parseFloat(r.residential_rate) / 1000 : null;
 };
 const isMainRoad = p => p.road_fclass != null && p.road_fclass <= 6;
-const tenureYears = p => p.last_sale_date ? new Date().getFullYear() - +p.last_sale_date.slice(0, 4) : null;
+// Tenure display (2026-09-16): tenure_sale_date when the deed chain or the
+// assessor dates the last market sale; deed_no_sale_since_2010 shows the
+// window's floor as "16+ yr" — never a made-up year. Un-enriched rows keep
+// the assessor date.
+const NO_SALE_FLOOR_YEARS = new Date().getFullYear() - 2010;
+const tenureYears = p => p.tenure_sale_date ? new Date().getFullYear() - +p.tenure_sale_date.slice(0, 4)
+  : p.tenure_basis === 'deed_no_sale_since_2010' ? NO_SALE_FLOOR_YEARS
+  : p.tenure_basis == null && p.last_sale_date ? new Date().getFullYear() - +p.last_sale_date.slice(0, 4) : null;
+const tenureLabel = p => { const t = tenureYears(p); return t == null ? '—' : (!p.tenure_sale_date && p.tenure_basis === 'deed_no_sale_since_2010' ? t + '+ yr' : t + ' yr'); };
+// Last sale for the history line: the deed-chain sale when it is the basis
+// (it carries the price the assessor's $1 deed hid), else the assessor's.
+const lastSale = p => p.tenure_basis === 'deed_sale' && p.deed_last_sale_date
+  ? { yr: p.deed_last_sale_date.slice(0, 4), price: p.deed_last_sale_price }
+  : p.last_sale_date ? { yr: p.last_sale_date.slice(0, 4), price: p.last_sale_price } : null;
 const inView = p => S.view === 'on' ? p.on_market === true : p.on_market !== true;
 const isDone = p => S.marks[S.profile]?.has(p.id);
 
@@ -1335,17 +1350,17 @@ function priceRow(p) {
 function card(p, done) {
   const l = links(p);
   const ten = tenureYears(p);
-  const saleYr = p.last_sale_date ? p.last_sale_date.slice(0, 4) : null;
+  const ls = lastSale(p);
   const lv = S.localVerdicts[p.id];
   const verdictLabel = lv && [...LISTING_VERDICTS, ...GATE_VERDICTS].find(v => v[0] === lv.verdict)?.[1];
   const err = S.saveErrs.get(p.id);
   return `<article class="card" data-id="${p.id}">
     <div class="card-head"><h3>${esc(displayAddr(p.address))}</h3><span class="town">${p.town}</span></div>
     <div class="price-row">${priceRow(p)}</div>
-    <p class="specs num"><span>${p.bedrooms ?? '?'}bd · ${fmtBa(p.bathrooms)}ba</span><span>${fmtNum(p.sqft)} sqft</span><span>${acres(p.lot_size)?.toFixed(2) ?? '?'} ac</span><span>${p.year_built ?? '?'}</span><span>${ten != null ? ten + ' yr' : '—'}</span></p>
+    <p class="specs num"><span>${p.bedrooms ?? '?'}bd · ${fmtBa(p.bathrooms)}ba</span><span>${fmtNum(p.sqft)} sqft</span><span>${acres(p.lot_size)?.toFixed(2) ?? '?'} ac</span><span>${p.year_built ?? '?'}</span><span>${tenureLabel(p)}</span></p>
     ${tagRow(p, done)}
     ${streetLine(p)}
-    <p class="hist-line num">Assessed ${money(p.assessed_value)}${saleYr ? ` · sold ${saleYr} for ${money(p.last_sale_price)}` : ''}</p>
+    <p class="hist-line num">Assessed ${money(p.assessed_value)}${ls ? ` · sold ${ls.yr} for ${money(ls.price)}` : ''}</p>
     ${done && verdictLabel ? `<p class="done-verdict">You said: <b>${verdictLabel}</b>${lv.at ? ' · ' + shortDate(lv.at) : ''}</p>` : ''}
     ${err ? `<div class="save-err">Save failed — ${esc(err)}. Your draft is kept below.</div>` : ''}
     <div class="card-foot">
@@ -1449,7 +1464,7 @@ function rowOrder(a, b) {
   const A = hurdleCounts(latestEval(a.id)?.hurdles), B = hurdleCounts(latestEval(b.id)?.hurdles);
   return (B.pass - A.pass) || (A.fail - B.fail) || ((a.price_estimate ?? 9e9) - (b.price_estimate ?? 9e9));
 }
-const specsLine = p => `<p class="specs num"><span>${p.bedrooms ?? '?'}bd · ${fmtBa(p.bathrooms)}ba</span><span>${fmtNum(p.sqft)} sqft</span><span>${acres(p.lot_size)?.toFixed(2) ?? '?'} ac</span><span>${p.year_built ?? '?'}</span><span>${tenureYears(p) != null ? tenureYears(p) + ' yr' : '—'}</span></p>`;
+const specsLine = p => `<p class="specs num"><span>${p.bedrooms ?? '?'}bd · ${fmtBa(p.bathrooms)}ba</span><span>${fmtNum(p.sqft)} sqft</span><span>${acres(p.lot_size)?.toFixed(2) ?? '?'} ac</span><span>${p.year_built ?? '?'}</span><span>${tenureLabel(p)}</span></p>`;
 
 function shortlistRow(p) {
   const lead = latestEval(p.id);
@@ -1538,7 +1553,7 @@ function renderHouse(id) {
     return;
   }
   const l = links(p);
-  const saleYr = p.last_sale_date ? p.last_sale_date.slice(0, 4) : null;
+  const ls = lastSale(p);
   const where = p.town + (p.town === 'Beverly' && p.neighborhood ? ' · ' + esc(p.neighborhood) : '');
   let h = `${back}<header class="house-head surface">
     <div class="card-head"><h2 class="hh-title" tabindex="-1">${esc(displayAddr(p.address))}</h2><span class="town">${where}</span></div>
@@ -1546,7 +1561,7 @@ function renderHouse(id) {
     ${specsLine(p)}
     ${tagRow(p, true, 'house')}
     ${streetLine(p)}
-    <p class="hist-line num">Assessed ${money(p.assessed_value)}${saleYr ? ` · sold ${saleYr} for ${money(p.last_sale_price)}` : ''}</p>
+    <p class="hist-line num">Assessed ${money(p.assessed_value)}${ls ? ` · sold ${ls.yr} for ${money(ls.price)}` : ''}</p>
     <div class="links">
       <a href="${l.zillow}" target="_blank" rel="noopener">Zillow</a>
       <a href="${l.redfin}" target="_blank" rel="noopener">Redfin</a>
