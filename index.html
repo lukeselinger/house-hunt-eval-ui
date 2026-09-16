@@ -13,13 +13,12 @@
     (forcedTheme === 'dark' || forcedTheme === 'light' ? forcedTheme : null) ||
     localStorage.getItem('hh2-theme') ||
     (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-  // Sections-bar style trial (Luke, 2026-09-14: "I would like to see it both
-  // ways"): ?bar=pill or ?bar=flat sets it and is remembered. Remove once ruled.
+  // Trials that have closed: the desktop rail (reverted 2026-09-15, to return
+  // via a brief) and the phone bar style (Luke ruled pill, 2026-09-15). Clear
+  // any remembered choice from either.
   try {
-    const q = new URLSearchParams(location.search).get('bar');
-    if (q === 'pill' || q === 'flat') localStorage.setItem('hh2-bar', q);
-    document.documentElement.dataset.bar = localStorage.getItem('hh2-bar') || 'pill';   // trial default: pill (Luke, 2026-09-15)
-    localStorage.removeItem('hh2-nav');   // the desktop rail trial was reverted 2026-09-15 (to return via a brief); clear any remembered choice
+    localStorage.removeItem('hh2-nav');
+    localStorage.removeItem('hh2-bar');
   } catch (e) {}
 </script>
 <style>
@@ -62,12 +61,13 @@
   --z-sticky: 100;
   --z-screen: 200;
   --z-toast: 400;
-  --bar-h: 56px;             /* sections bar, phones only (0 at 640 and up) */
+  --bar-h: 62px;             /* sections bar, phones only: 52 tall + the 10px it floats (0 at 640 and up) */
   /* saved-card exit curve. Feel-iteration 1 (Luke, 2026-09-11: "way too fast,
      I just saw the list jump"): the expo curve (0.19,1,0.22,1) put ~90% of a
      600-900px collapse into the first 90ms. Quad ease-out spreads it across
      the full 300ms — same durations, only the easing changed. */
   --ease-exit: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-travel: cubic-bezier(0.645, 0.045, 0.355, 1);   /* ease-in-out cubic: a box already on screen moving to a new place (feel-iteration 2, 2026-09-15 — the sheet curve front-loaded the travel and could not be registered); --ease-exit is for a collapse in place */
 }
 @media (min-resolution: 192dpi) {
   :root { --border-hairline: 0.5px; }
@@ -129,6 +129,13 @@ button {
   -webkit-user-select: none;
 }
 :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* Headings focused as the landing point after a route change (tabindex -1) are not
+   controls. Safari draws :focus-visible for script-driven focus (Chrome does not),
+   which put a black box on the Shortlist title and the house address on the phone
+   (Luke, 2026-09-15). The ring is drawn only while the keyboard is driving
+   (html[data-kb]: set on Tab/Enter/arrows, cleared on any pointer). */
+h2[tabindex="-1"]:focus { outline: none; }
+html[data-kb] h2[tabindex="-1"]:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 [hidden] { display: none !important; }
 a { color: var(--accent-strong); text-decoration-thickness: from-font; text-underline-offset: 2px; }
 .wrap { max-width: 640px; margin-inline: auto; padding-inline: 16px; }
@@ -192,43 +199,32 @@ a { color: var(--accent-strong); text-decoration-thickness: from-font; text-unde
   .sections a:hover { background: var(--well); }
 }
 @media (max-width: 639.98px) {
+  /* The floating pill (Luke ruled pill over flat, 2026-09-15, after two
+     feel-iterations on 09-14/15: an opaque card "seems too big and doesn't
+     read as an overlay"; then "still reads as opaque ... missing the
+     transparency and the blur of the content underneath ... no evidence of
+     any lit edge; elevation weaker in dark" — the fill had been 68% of a
+     colour matching the page, so the blur had nothing to show). A thin fill
+     (white 42% light / white 9% dark — lighter than the page so it lifts),
+     blur at the 20px performance ceiling with saturation, a gradient rim
+     brightest at the top (lit from above), a shade along the bottom for
+     thickness, and an ambient shadow that stays visible in dark because the
+     bar is lighter than the page. */
   .sections {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--z-sticky);
-    padding-bottom: env(safe-area-inset-bottom);
-    background: var(--bg);
-    border-top: var(--border-hairline) solid var(--line);
-  }
-  .sections a {
-    flex: 1; flex-direction: column; gap: 3px;
-    min-height: var(--bar-h); padding-inline: 8px; border-radius: 0;
-    font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.01em;
-  }
-  .sections a .count { display: none; }   /* the bar names places; counts live on the pages */
-  /* floating pill variant (?bar=pill). Feel-iteration 1 (Luke, 2026-09-14):
-     an opaque card "seems too big and doesn't read as an overlay". Feel-
-     iteration 2 (Luke, 2026-09-15, and confirmed in a headless screenshot):
-     still "reads as opaque ... missing the transparency and the blur of the
-     content underneath ... no evidence of any lit edge; elevation weaker in
-     dark". The fill was 68% of a colour that matches the page, so the blur
-     had nothing to show. Now: a thin fill (white 42% light / white 9% dark —
-     lighter than the page so it lifts), blur at the 20px performance
-     ceiling with saturation, a gradient rim brightest at the top (lit from
-     above), a shade along the bottom for thickness, and an ambient shadow
-     that stays visible in dark because the bar is lighter than the page. */
-  [data-bar="pill"] .sections {
+    position: fixed; z-index: var(--z-sticky);
     left: 16px; right: 16px; bottom: calc(10px + env(safe-area-inset-bottom));
-    padding: 4px; padding-bottom: 4px;
+    padding: 4px;
     background: oklch(1 0 0 / 0.42);
     -webkit-backdrop-filter: blur(20px) saturate(1.8);
     backdrop-filter: blur(20px) saturate(1.8);
-    border: 0; border-radius: 999px;
+    border-radius: 999px;
     box-shadow:
       inset 0 -1px 0 oklch(0 0 0 / 0.05),
       0 1px 2px oklch(0 0 0 / 0.06),
       0 12px 32px -8px oklch(0 0 0 / 0.28);
     isolation: isolate;
   }
-  [data-bar="pill"] .sections::before {          /* the rim: a 1px gradient ring, brightest at the top */
+  .sections::before {          /* the rim: a 1px gradient ring, brightest at the top */
     content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
     background: linear-gradient(to bottom, oklch(1 0 0 / 0.9), oklch(1 0 0 / 0.25));
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -236,20 +232,24 @@ a { color: var(--accent-strong); text-decoration-thickness: from-font; text-unde
     mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     mask-composite: exclude;
   }
-  [data-theme="dark"][data-bar="pill"] .sections {
+  [data-theme="dark"] .sections {
     background: oklch(1 0 0 / 0.09);
     box-shadow:
       inset 0 -1px 0 oklch(0 0 0 / 0.3),
       0 1px 2px oklch(0 0 0 / 0.4),
       0 12px 32px -8px oklch(0 0 0 / 0.6);
   }
-  [data-theme="dark"][data-bar="pill"] .sections::before {
+  [data-theme="dark"] .sections::before {
     background: linear-gradient(to bottom, oklch(1 0 0 / 0.32), oklch(1 0 0 / 0.06));
   }
-  [data-bar="pill"] .sections a { position: relative; min-height: 44px; border-radius: 999px; gap: 2px; }
-  [data-bar="pill"] .sections a[aria-current="page"] { background: oklch(1 0 0 / 0.55); box-shadow: 0 1px 2px oklch(0 0 0 / 0.06); }   /* a brighter pane of the same glass; accent stays on the glyph and label */
-  [data-theme="dark"][data-bar="pill"] .sections a[aria-current="page"] { background: oklch(1 0 0 / 0.12); box-shadow: none; }
-  html[data-bar="pill"] { --bar-h: 62px; }   /* 52 tall + the 10px it floats above the edge: the last row clears it, the rest scrolls beneath */
+  .sections a {
+    position: relative; flex: 1; flex-direction: column; gap: 2px;
+    min-height: 44px; padding-inline: 8px; border-radius: 999px;
+    font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.01em;
+  }
+  .sections a[aria-current="page"] { background: oklch(1 0 0 / 0.55); box-shadow: 0 1px 2px oklch(0 0 0 / 0.06); }   /* a brighter pane of the same glass; accent stays on the glyph and label */
+  [data-theme="dark"] .sections a[aria-current="page"] { background: oklch(1 0 0 / 0.12); box-shadow: none; }
+  .sections a .count { display: none; }   /* the bar names places; counts live on the pages */
 }
 @media (min-width: 640px) {
   :root { --bar-h: 0px; }
@@ -545,7 +545,7 @@ textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3
 .sl-main { flex: 1; min-width: 0; }
 .sl-l1 { display: flex; align-items: baseline; gap: 8px; }
 .sl-addr { flex: 1; min-width: 0; font-size: 1.0625rem; font-weight: 600; line-height: 1.3; }   /* the identifier leads, at the card's size */
-.sl-link { color: inherit; text-decoration: none; }
+.sl-link { display: inline-block; color: inherit; text-decoration: none; }   /* inline-block: one box the width of its text, the shared element on the way to the house page */
 .sl-link::after { content: ''; position: absolute; inset: 0; }   /* the whole row taps; the link's text stays just the address */
 .sl-link:focus-visible { outline: none; }
 .sl-row:has(.sl-link:focus-visible) { outline: 2px solid var(--ink); outline-offset: -2px; }
@@ -566,6 +566,56 @@ textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3
 @media (hover: hover) and (pointer: fine) { .back:hover { background: var(--accent-tint); } }
 /* the house page: the card you tapped, opened up */
 .house-head { padding: 14px 16px; margin-top: 4px; }
+/* Row → house page (motion brief 3, Luke 2026-09-15): the tapped row's box grows
+   into the head surface with the address pinned inside it; everything else
+   crossfades in the box; the list fades out around it. Same-document View
+   Transitions; the router tags the two elements for one navigation only.
+   Forward 320ms, Back 240ms on --ease-travel. Browsers without the API and
+   origin-less arrivals (deep link, reload) get the instant switch. */
+.vt-row  { view-transition-name: row; }
+.vt-addr { view-transition-name: addr; }
+.vt-page { view-transition-name: page; }   /* the surface around the box: the list leaving, the page body arriving */
+.vt-bar  { view-transition-name: bar; }    /* the sections bar, so it keeps painting above the moving surface */
+::view-transition-group(*) { animation-duration: var(--vt-dur, 320ms); animation-timing-function: var(--ease-travel); }   /* the move; --vt-dur scales with the box's travel (router) */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--vt-dur, 320ms); animation-timing-function: ease; }   /* the fades keep pace with the box; opacity wants ease, not the sheet curve (review 2026-09-15) */
+:root.vt-back::view-transition-group(*), :root.vt-back::view-transition-old(root), :root.vt-back::view-transition-new(root) { animation-duration: calc(var(--vt-dur, 320ms) * 0.75); }
+::view-transition-image-pair(row) { clip-path: inset(-40px -40px -6px -40px); }   /* the bottom edge is the reveal; the sides and top stay open so the card's shadow ring is in the frame, not popping in at the end */
+/* One displacement for everything (feel-iteration 1, Luke 2026-09-15: the page
+   "had fully arrived while the row was still moving" — only the box travelled,
+   the rest faded in place). The list and the page body ride the box's own
+   delta (--vt-dy, set by the router) on the same curve and clock, so the
+   surface moves as one and the box grows inside that movement. */
+@keyframes vt-page-out { from { transform: translateY(var(--vt-off)); } to { transform: translateY(calc(var(--vt-off) + var(--vt-dy))); } }
+@keyframes vt-page-in  { from { transform: translateY(calc(-1 * var(--vt-dy))); } to { transform: translateY(0); } }
+@keyframes vt-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes vt-fade-in  { from { opacity: 0; } to { opacity: 1; } }
+::view-transition-group(page) { animation: none; }               /* the group sits at the new page's box; the images do the moving */
+::view-transition-image-pair(page) { clip-path: inset(0 -40px -40px -40px); }   /* clipped only at the top, under the header; the surfaces' shadows at the sides survive */
+::view-transition-old(page), ::view-transition-new(page) { width: 100%; height: 100%; object-fit: none; object-position: top left; overflow: visible; }
+::view-transition-old(page) { animation: vt-page-out var(--vt-dur, 320ms) var(--ease-travel), vt-fade-out var(--vt-dur, 320ms) ease; animation-fill-mode: both; }
+::view-transition-new(page) { animation: vt-page-in var(--vt-dur, 320ms) var(--ease-travel), vt-fade-in var(--vt-dur, 320ms) ease; animation-fill-mode: both; }
+/* fill-mode both, stated after the shorthand (which resets it to none): Safari keeps the
+   pseudo tree a frame past the last animation, and without fill the old surface snapped
+   back to full opacity for that frame — the flash behind the Back link (feel-iteration 4) */
+:root.vt-back::view-transition-old(page), :root.vt-back::view-transition-new(page) { animation-duration: calc(var(--vt-dur, 320ms) * 0.75); }
+::view-transition-group(bar) { animation: none; }
+::view-transition-old(bar) { display: none; }                    /* the bar does not change: draw the new one only, no crossfade */
+/* Chrome does not animate. With the surface travelling, the header (which scrolls
+   with the page, so it was off-screen in a scrolled list) would otherwise fade
+   in over the move and read as a page appearing; instead the new root paints
+   from the first frame and the surface moves beneath it. Reduced motion keeps
+   the root crossfade — there it is the only motion. */
+:root.vt-travel::view-transition-old(root) { display: none; }
+:root.vt-travel::view-transition-new(root) { animation: none; }
+::view-transition-old(row), ::view-transition-new(row) {
+  width: 100%; height: 100%; object-fit: none; object-position: top left; overflow: visible;   /* reveal, never stretch: the head is uncovered as the box grows */
+}
+/* addr keeps the default image sizing: both snapshots are the same text at the
+   same size, and the default places ink overflow (a focus ring) where it belongs */
+@media (prefers-reduced-motion: reduce) {
+  /* the router assigns no row/addr names under reduced motion: a 150ms crossfade, no travel */
+  ::view-transition-group(*), ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 150ms; animation-timing-function: ease; }
+}
 .house-head .hh-title { margin: 0; font-size: 1.0625rem; font-weight: 600; line-height: 1.3; text-wrap: balance; }
 .house-head .links {
   display: flex; margin-left: -10px; margin-top: 10px; padding-top: 8px;
@@ -1464,6 +1514,10 @@ async function loadHouse(id) {
   }).then(rows => indexEvents(id, rows)).catch(() => indexEvents(id, [])));
   if (!jobs.length) return;
   await Promise.all(jobs);
+  // The row→page transition's new-state images are live: re-rendering the head
+  // mid-move removes the tagged elements and the browser aborts the move (the
+  // first visit to a house "just jumped" — Luke, 2026-09-15). Wait it out.
+  if (S.vt) await S.vt.finished.catch(() => {});
   if (S.route.name === 'house' && S.route.id === id) render();
 }
 
@@ -2060,12 +2114,59 @@ window.addEventListener('hashchange', () => {
   S.route = parseRoute();
   if (isQueueRoute(S.route)) S.view = S.route.name;
   if (!S.loaded) return;
-  render();
-  if (S.route.name === 'house') { scrollTo(0, 0); loadHouse(S.route.id); }
-  else if (S.route.name === 'shortlist' && prev.name === 'house') scrollTo(0, S.slScroll);   // back where you were in the list
-  else if (isQueueRoute(S.route) !== isQueueRoute(prev)) scrollTo(0, 0);
-  if (!isQueueRoute(S.route)) $('page').querySelector('h2')?.focus({ preventScroll: true });   // the tapped link left with the list; land on the heading
+  const route = S.route;
+  const update = () => {
+    render();
+    if (route.name === 'house') { scrollTo(0, 0); loadHouse(route.id); }
+    else if (route.name === 'shortlist' && prev.name === 'house') scrollTo(0, S.slScroll);   // back where you were in the list
+    else if (isQueueRoute(route) !== isQueueRoute(prev)) scrollTo(0, 0);
+    if (!isQueueRoute(route)) $('page').querySelector('h2')?.focus({ preventScroll: true });   // the tapped link left with the list; land on the heading
+  };
+  // Row → house page and back travel as one box (motion brief 3, 2026-09-15).
+  const forward = prev.name === 'shortlist' && route.name === 'house';
+  const back = prev.name === 'house' && route.name === 'shortlist';
+  if (!(forward || back) || !document.startViewTransition) { update(); return; }
+  const tag = (row, addr) => { row?.classList.add('vt-row'); addr?.classList.add('vt-addr'); };
+  const untag = () => document.querySelectorAll('.vt-row, .vt-addr, .vt-page, .vt-bar').forEach(el => el.classList.remove('vt-row', 'vt-addr', 'vt-page', 'vt-bar'));
+  const tagRow = id => { const link = document.querySelector(`.sl-link[href="#house/${id}"]`); tag(link?.closest('.sl-row'), link); };
+  const tagHead = () => tag(document.querySelector('.house-head'), document.querySelector('.house-head .hh-title'));
+  const anchor = () => document.querySelector('.vt-row')?.getBoundingClientRect().top;   // the box's edge, before and after
+  const pageTop = () => $('page').getBoundingClientRect().top;
+  const travel = !reduced();                         // reduced motion: the root crossfade only, nothing moves
+  untag();                                           // a move started mid-move: drop the running one's tags first, or the names collide
+  S.vt?.skipTransition();
+  let fromTop, fromPage;
+  if (travel) {
+    forward ? tagRow(route.id) : tagHead();
+    $('page').classList.add('vt-page'); document.querySelector('.sections')?.classList.add('vt-bar');
+    fromTop = anchor(); fromPage = pageTop();
+  }
+  document.documentElement.classList.toggle('vt-back', back);
+  document.documentElement.classList.toggle('vt-travel', travel);
+  const vt = S.vt = document.startViewTransition(() => {
+    update();
+    if (!travel) return;
+    forward ? tagHead() : tagRow(prev.id);
+    $('page').classList.add('vt-page');
+    const toTop = anchor();
+    const dy = (fromTop != null && toTop != null) ? toTop - fromTop : 0;      // the box's travel (negative = up)
+    document.documentElement.style.setProperty('--vt-dy', dy + 'px');
+    // Duration scales with the travel (animate: bigger moves take longer): 260ms + 0.45ms per px, held to 320–520. Back runs at 0.75×.
+    document.documentElement.style.setProperty('--vt-dur', Math.round(Math.min(520, Math.max(320, 260 + 0.45 * Math.abs(dy)))) + 'ms');
+    document.documentElement.style.setProperty('--vt-off', (fromPage - pageTop()) + 'px');   // where the old surface sat, relative to the new
+  });
+  vt.ready.catch(() => {});                          // a skipped transition rejects here; the page is already in its new state
+  vt.finished.finally(() => {
+    if (S.vt !== vt) return;                         // a newer transition owns the tags now
+    S.vt = null;
+    untag();
+    document.documentElement.classList.remove('vt-back', 'vt-travel');
+  });
 });
+
+// Input modality, for the landing-heading ring above: keyboard sets it, any pointer clears it.
+addEventListener('keydown', e => { if (e.key === 'Tab' || e.key === 'Enter' || e.key === ' ' || e.key.startsWith('Arrow')) document.documentElement.dataset.kb = ''; }, true);
+addEventListener('pointerdown', () => { delete document.documentElement.dataset.kb; }, true);
 
 window.addEventListener('beforeunload', e => {
   if (S.pendingSaves > 0) { e.preventDefault(); e.returnValue = ''; }
