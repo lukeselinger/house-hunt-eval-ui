@@ -752,7 +752,7 @@ footer {
   <div class="brand-row">
     <span class="brand">House hunt</span>
     <nav class="sections" aria-label="Sections">
-      <a id="nav-queue" href="#off"><svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true"><path d="M3.5 12.5h4l1.5 2.5h4l1.5-2.5h4M3.5 12.5v4a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-4M3.5 12.5 6 5.5a1.5 1.5 0 0 1 1.4-1h7.2a1.5 1.5 0 0 1 1.4 1l2.5 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Queue</span></a>
+      <a id="nav-queue" href="#off"><svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true"><path d="M3.5 12.5h4l1.5 2.5h4l1.5-2.5h4M3.5 12.5v4a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-4M3.5 12.5 6 5.5a1.5 1.5 0 0 1 1.4-1h7.2a1.5 1.5 0 0 1 1.4 1l2.5 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Inventory</span></a>
       <a id="nav-shortlist" href="#shortlist"><svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true"><path d="M5.5 4.5A1.5 1.5 0 0 1 7 3h8a1.5 1.5 0 0 1 1.5 1.5V19l-5.5-3.5L5.5 19V4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg><span>Shortlist<span class="count num" id="count-shortlist"></span></span></a>
     </nav>
     <button class="chip-btn" id="profile-btn" aria-label="Switch evaluator" hidden>
@@ -838,7 +838,7 @@ footer {
 <div class="screen" id="gate" hidden>
   <div class="screen-inner">
     <h2>Who&rsquo;s evaluating?</h2>
-    <p>Saves are recorded in your name and clear homes from your queue.</p>
+    <p>Saves are recorded in your name and clear homes from your inventory.</p>
     <div class="big-btns">
       <button class="big-btn" data-profile="Luke">Luke</button>
       <button class="big-btn" data-profile="Michelle">Michelle</button>
@@ -1726,7 +1726,7 @@ function render() {
   const fs = $('filter-summary');
   if (filtersActive()) {
     fs.hidden = false;
-    fs.innerHTML = `<span class="num">${queue.length} of ${queueAll.length} in queue</span><button id="clear-filters">Clear filters</button>`;
+    fs.innerHTML = `<span class="num">${queue.length} of ${queueAll.length} in inventory</span><button id="clear-filters">Clear filters</button>`;
   } else fs.hidden = true;
   for (const sel of ['f-town', 'f-nhood', 'f-road', 'f-form', 'f-beds', 'f-year'])
     $(sel).classList.toggle('active', !!$(sel).value);
@@ -1763,7 +1763,7 @@ function render() {
     list.innerHTML = `<div class="empty"><div class="big">Nothing on the market</div>
       When a watchlist home lists, it appears here — that&rsquo;s the moment the prep pays off.</div>`;
   } else {
-    list.innerHTML = `<div class="empty"><div class="big">Queue clear</div>
+    list.innerHTML = `<div class="empty"><div class="big">Inventory clear</div>
       Every off-market home has your gate check. The done list below has your calls.</div>`;
   }
 
@@ -2031,7 +2031,7 @@ async function save(id) {
     S.saveErrs.set(id, String(e.message || e));
     S.reenter.add(id);                             // render() plays the return
     if (S.exiting === 0) render();                 // else the in-flight exit's finish renders
-    toast(`Save failed — ${displayAddr(p.address)} is back in your queue`, true);
+    toast(`Save failed — ${displayAddr(p.address)} is back in your inventory`, true);
   } finally {
     S.pendingSaves--;
   }
